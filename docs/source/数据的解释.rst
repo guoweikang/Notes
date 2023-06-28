@@ -1,9 +1,9 @@
 数据的多种解释
 =====
 
-.. _installation:
+.. 二进制:
 
-Installation
+二进制
 ------------
 
 To use Lumache, first install it using pip:
