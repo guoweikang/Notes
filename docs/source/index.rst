@@ -13,4 +13,5 @@ Contents
 .. toctree::
 
    数据的解释
+   boolean_logic
    

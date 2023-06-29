@@ -10,4 +10,5 @@ Logic Gate（逻辑门）
 ------------
 
 逻辑门的定义： 有1个以上的输入(Inputes), 但是只能有1个输出(output) ，如下图
-
+.. image:: ./images/boolean_logic/1.png
+  :width: 400px
