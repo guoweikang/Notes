@@ -11,7 +11,6 @@ Contents
 --------
 
 .. toctree::
-   :maxdepth: 2
 
    二进制   <data_bits/index.rst>
    

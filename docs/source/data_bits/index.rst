@@ -8,5 +8,5 @@
 
 .. toctree::
 
-   二进制数据的含义 <data/index.rst>
-   二进制控制的实现 <boolean_logic/index.rst>
+   二进制数据的含义 <data.rst>
+   二进制控制的实现 <boolean_logic.rst>
