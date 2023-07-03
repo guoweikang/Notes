@@ -420,39 +420,64 @@ NAND Gate
 
 .. math::
 
-  A \cdot A  = A 
-  A \plus A  = A
+  A \cdot A  = A
+  
+.. math::
+
+  A + A  = A
+  
+.. math::
+ 
   A \oplus A = 0 
   
 .. note:
    活学活用，在汇编中，如果希望初始化一个变量=0，使用 MOV A, #0, 这条汇编隐含有会访问两次内存，第一次从内存获取指令，第二次从内存获取常量
    利用 XOR 的特性，可以改为： XOR A, A; 所以在看到这个汇编指令，要知道这是 clear A 的快速指令
 
+
 :计算因子= A的反:
 
 .. math::
 
-  A \cdot \overline{A} = 0 
-  A \plus \overline{A} = 1
+  A \cdot \overline{A} = 0
+
+.. math::
+
+  A + \overline{A} = 1
+  
+.. math::
+
   A \oplus \overline{A} = 1  
  
 :计算因子=1:
 
 .. math::
 
-  A \cdot 1  = A 
-  A \plus 1  = 1
+  A \cdot 1  = A
+
+.. math::
+
+  A + 1  = 1
+  
+.. math::
+ 
   A \oplus 1 = \overline{A}
   
 :计算因子=0:
 
 .. math::
 
-  A \cdot 0  = 0 
-  A \plus 0  = A
+  A \cdot 0  = 0
+
+.. math::
+
+  A + 0  = A
+  
+.. math::
+
   A \oplus 0 = A
 
-上述结论 都可以通过真值表推导出来
+上述结论 都可以通过真值表推导出来，后续我们在学习按位计算 会用到这些基本恒等式
 
 
 
