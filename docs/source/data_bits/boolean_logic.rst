@@ -420,9 +420,9 @@ NAND Gate
 
 .. math::
 
-  AND: A \cdot A  = A 
-  OR:  A \plus A  = A
-  XOR: A \oplus A = 0 
+  A \cdot A  = A 
+  A \plus A  = A
+  A \oplus A = 0 
   
 .. note:
    活学活用，在汇编中，如果希望初始化一个变量=0，使用 MOV A, #0, 这条汇编隐含有会访问两次内存，第一次从内存获取指令，第二次从内存获取常量
@@ -432,25 +432,25 @@ NAND Gate
 
 .. math::
 
-  AND: A \cdot \overline{A} = 0 
-  OR:  A \plus \overline{A} = 1
-  XOR: A \oplus \overline{A} = 1  
+  A \cdot \overline{A} = 0 
+  A \plus \overline{A} = 1
+  A \oplus \overline{A} = 1  
  
 :计算因子=1:
 
 .. math::
 
-  AND: A \cdot 1  = A 
-  OR:  A \plus 1  = 1
-  XOR: A \oplus 1 = \overline{A}
+  A \cdot 1  = A 
+  A \plus 1  = 1
+  A \oplus 1 = \overline{A}
   
 :计算因子=0:
 
 .. math::
 
-  AND: A \cdot 0  = 0 
-  OR:  A \plus 0  = A
-  XOR: A \oplus 0 = A
+  A \cdot 0  = 0 
+  A \plus 0  = A
+  A \oplus 0 = A
 
 上述结论 都可以通过真值表推导出来
 
