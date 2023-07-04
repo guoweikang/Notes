@@ -595,4 +595,23 @@ Not Gate并不适用布尔代数式的特性(分配律、交换律、结合律)
    = (\overline{A} \cdot \overline{C}) \cdot 0
    = 0
 
+:练习4:
+
+.. math::
+
+   (A+B) \cdot (B + \overline{A} ) = A \cdot B + A \cdot \overline{A} + B \cdot B + B \cdot  \overline{A} 
+    = A \cdot B + 0 + B + B  \cdot  \overline{A}
+    = B \cdot (A + 1 + \overline{A})	 
+	= B \cdot (1 + A + \overline{A}) = B \cdot 1 = B
+
+:练习5:
+
+.. math::
+
+   A \cdot B \cdot \overline{C}  + B \cdot \overline{C} \cdot D +  \overline{A + \overline{B} + C} 
+   =  A \cdot B \cdot \overline{C}  + B \cdot \overline{C} \cdot D + \overline{A} \cdot B \cdot \overline{C}
+   = B \cdot \overline{C} \cdot (A + D + \overline{A}) 
+   = B \cdot \overline{C} \cdot (A+\overline{A} + D) 
+   = B \cdot \overline{C} \cdot (1 + D)  
+   = B \cdot \overline{C}
 
