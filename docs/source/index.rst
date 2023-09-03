@@ -16,10 +16,15 @@
 
    This project is under active development.
 
+.. note::
+
+	关于学习顺序，计算机是什么?是如何工作的？我认为只要是计算机工作人员，都需要掌握这部分知识，因此也是必须要掌握的最基础的能力
+
 Contents
 --------
 
 .. toctree::
 
+   RUST         <rust/rust.rst>
    计算机原理   <computer_organization/index.rst>
-   操作系统     <operate_system/index.rst>
+   操作系统     <os/index.rst>
