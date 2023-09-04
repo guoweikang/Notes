@@ -340,6 +340,20 @@ RUST中提出了借用的概念,借用的核心概念类似C里面的引用(只�
 
  - 所有者可以把内存临时借用给其他人，借用内存的那个人，临时拥有内存，用完要归还给所有者
  
+思考一个问题，如果借用也是一个类型，借用有没有所有权的概念？
+
+.. code-block:: c
+
+	fn main() {
+		let s = String::from("你1234567");
+		let s1 = &s;
+		let s2 = s1; //s1有所有权概念吗? 是否会把所有权交给s2n? 
+		
+		println!("{}", s1);
+		println!("{}", s2);
+	}
+
+ 
 讲到这里，就必须要提 可变变量,我的内存借给别人，他能不能修改？如果我内存借用给了好几个人，这些人都对内存
 修改会出现什么情况？
 
@@ -543,6 +557,167 @@ RUST 默认变量都是不可变的 先参考下面代码
 ---------
 是时候简单介绍一些基本类型和语法 以便于继续下面的学习
 
+基本类型
+^^^^^^^^^^
+和C类似，RUST的基本数据类型有：
+
+ - 符号整数：  i8 i16 i32 i64 i128 以及 isize(平台相关 指针宽度)
+ - 无符号整数: u8 u16 u32 u64 u128 以及 usize
+ - 浮点数： f32 f64 
+ - char: 单个unicode字符,4byte 
+ - bool: 只能是true 和 false 
+ - 单元类型 unit：() 只能为空
+
+.. note::
+
+	基础类型的赋值(copy) 是值copy（内存都是栈上内存）,虽然基础类型没有所有权转移，但是依然遵循借用规则
+
+.. code-block:: c
+
+	fn main() {
+		let mut s = 10;
+		let mut s1 = &mut s;
+	
+		println!("{}",s); // 错误，s已经作为可变变量借用给了 s1
+		println!("{}",s1);
+	}
+
+
+String类型
+^^^^^^^^^^^
+在RUST里面有两个string 类型， 我们先介绍String 类型， 需要注意的有两点: 
+
+ - String 是一个长度可变的字符串，内存从堆上分配
+ - String 遵循所有权
+ - String 内部以UTF-8编码
+ - String 类型的基本结构为 3word字节 (capcity：  data:  len: )
+ 
+.. code-block:: c
+
+	let mut s: String = String::from("Hello "); // mut tell use this s is mutable
+	s.push_str("world!");
+	s.replace_range(.., "123"); // 可能破坏 UTF-8编码
+	let s2 = String::from("second word");
+	let s3 = s1 + &s2; // 这里 s1的所有权已经move
+	println!("{}", s1); // 错误
+
+字符串切片
+^^^^^^^^^^^
+字符串切片是字符串部分值得*引用*，初始化为：
+ 
+.. code-block:: c
+
+	fn main() {
+	
+		let mut s = String::from("hello world");
+	
+		let hello = &s[0..5];
+		
+		let world = &s[6..11];
+		
+		s.clear(); //错误， s此时被 world 切片引用
+		println!("{}",world);	
+	}
+
+当字符串被切片引用期间，字符串不能修改
+
+切片得优势: 允许我们在仅使用部分内存时，依然能够享受 所有权 借用规则
+
+
+变量声明
+^^^^^^^^
+RUST的变量声明格式为 :  let  + {mut} + 变量名 + {: 类型}   
+
+ - mut 是可选的，用来声明可变变量，可变变量下一小节说明
+ - :类型: 类型说明是可选的，关于默认类型推导后面专门说明
+ 
+.. code-block:: c
+
+	#声明变量
+	let int32: i32 = 123;
+	let mut int32: i32 = 123;
+
+变量类型推导
+^^^^^^^^^^^^^^
+上一小节，我们说变量声明的类型可能是可选的，RUST 提供以下几种机制，在编译阶段，自动推导出类型
+
+ - 显示给出类型：  let a : i32 显示声明a 的类型为i32 
+ - 通过后缀:  let a = 12i32， 利用初始值的后缀 声明a的类型为i32
+ - 默认类型:  let a = 12;  RUST 默认整数类型为 i32 浮点型默认为 f64 
+ - 上下文推断: RUST 不仅仅只是根据初值定义类型，还可以通过上下文的使用 决定类型
+
+关于(不)可变 在之前我们已经介绍过 不在强调
+
+(不)可变数组
+^^^^^^^^^^^^^^
+Vec 是RUST提供的可变数组类型 下面是一个示例：
+
+.. code-block:: c
+
+	let mut v: Vec<i32> = Vec::new();
+	v.push(2);
+	v.push(3);
+	// Even here, the ": Vec<i32>" type annotation is optional. If you omit it, the
+	// compiler will look ahead to see how the vector is being used, and from that, it
+	// can infer the type of the vector elements. Neat!
+
+固定大小的数组，C里面的固定数组，发生访问越界是不会报错的，Rust如果发生数组越界 会报错
+
+.. code-block:: c
+
+	let mut arr: [i32; 4] = [0, 2, 4, 8];  // 声明使用 类型；大小
+	arr[0] = -2;
+	println!("{}", arr[0] + arr[1]);
+	
+函数声明
+^^^^^^^^^^^^
+ - fn用来声明函数，其余和C一样
+
+函数参数
+^^^^^^^^^
+ - 通过(var1 : datatype,  var2 : datatype) 定义了两个类型的变量
+
+语句&表达式
+^^^^^^^^^^^^^
+本小节对于习惯使用C 但是第一次解除RUST的人可能有点别扭，RUST有一个叫做表达式的概念；
+从代码直观编程上看，语句是有”;“ 作为结尾的， 表达式没有 ";"  下面是一个最直观的例子
+
+.. code-block:: c
+
+	fn main() {
+		let y = {
+			let x = 3;
+			x + 1
+		};
+		println!("The value of y is: {}", y);
+	}
+	
+这里使用的是一个块表达式
+
+函数返回值
+^^^^^^^^^^^^
+
+ - 通过类似 fn a() -> i32 {} 定义一个返回值是i32类型的函数
+ - 函数返回值 必须通过表达式的形式返回,RUST没有return 关键字 
+
+下面是一个简单的示例:
+
+.. code-block:: c
+
+	fn main() {
+		let x = plus_one(5);
+
+		println!("The value of x is: {}", x);
+	}
+
+	fn plus_one(x: i32) -> i32 {
+		// x + 1;错误
+		x+1 //正确
+	}
+
+
+练习:shopping list
+^^^^^^^^^^^^^^^^^^
 请先尝试自己通过google 或者chatgpt 完成一个小程序实现如下功能：终端接收购物清单，结束输入done 然后打印
 
 .. code-block:: c
@@ -561,28 +736,18 @@ RUST 默认变量都是不可变的 先参考下面代码
 	* cucumbers
 
 
-基本类型
-^^^^^^^^^^
-和C类似，RUST的基本数据类型有：
-
- - 符号整数：  i8 i16 i32 i64 i128 以及 isize(平台相关 指针宽度)
- - 无符号整数: u8 u16 u32 u64 u128 以及 usize
- - 浮点数： f32 f64 
- - char: 单个unicode字符,4byte 
- - bool: 只能是true 和 false 
- - 单元类型 unit：() 只能为空 
- 
-String 
-^^^^^^^^^^
-
 错误处理
 ---------
-错误处理机制，在任何一门语言都是常见并且必要的，目前常见的错误处理有两种模式: 
+错误处理机制，在任何一门语言都是常见并且必要的，在进入RUST 的错误处理之前，先回顾一下主流语言的处理方式和存在问题
 
-  - C/C++ 里面，常见的都是通过返回值返回错误(0 success  !0 error)
-  - python/java 经常使用的异常机制
-
-不得不说，其实C里面的错误处理是最简单、也是最不好使用的; 必须要求每个函数*最好*都有自己的文档说明，用以解释自己的返回值，并且调用者必须要处理，让我们看一下以下这段代码，看看有什么问题： 
+C的错误处理
+^^^^^^^^^^^^^
+C里面最常见的错误返回一般是: 
+ 
+ - 0 表示成功，-1表示失败， 错误原因通过修改errno记录
+ - 如果返回值是一个指针(void *) NULL表示失败，非NULL表示成功
+ 
+不得不说，其实C里面的错误处理是最简单，看一下下面的示例
 
 .. code-block:: c
 
@@ -609,169 +774,293 @@ String
 
 看一下上面代码；应该是C里面经常会犯的错误；由于每个函数对错误可能都有不同的理解,因此C对于错误的处理有这些痛点: 
   
-  - 不同函数对于返回值有不同的解释we(一般通常是<0是错误 0是成功 >0有其他含义) 
+  - 不同函数对于返回值有不同的解释
   - 错误在逐层向上传递的时候,每一级都处理正确，如果哪里处理不正确，就可能会产生bug
-  
+  - 由于每一级都需要错误检查，因此代码中可能存在大量的错误检查代码，影响可读性
 
-
-------------------
-我们主要通过对比 RUST 和 C的变量使用以及约束上 来帮助理解RUST的变量使用
-
-我们都知道C语言的变量只是一个内存label，基本格式为:
-  限定符(const static voiliate ....) + 数据类型(int/struct...) + 变量名
-
-限定符主要用于描述内存位置(bss/stack)以及一些其他约束(const 常量,编译阶段会检查不允许修改)等
-数据类型就很简单了，主要用来描述变量内存大小 变量名用于在编写代码作为注记符，经过编译后，变量的使用只是引用其内存地址
-
-C语言(主要是编译器)也提供了一些基本的变量类型检查,比如如果使用const 修饰的变量，不能再代码中修改他
-
-如果比较 RUST的和C的区别，这个我想说，各有利弊把 
- - 使用习惯C语言的人，似乎总是认为C是好的，因为他 更加贴近计算机，我们基本上可以通过C语言判断出他的汇编行为(需要一些计算机原理知识);
- - 任何更加上层语言，总是对代码增加了一些高级机制，RUST也不例外，RUST 为了安全和更加高级的功能，变量不在是简单的内存label，类似于python java，加了一层抽象封装:类型
- - RUST的优点在于 拥有强大的类型系统，在编程层面就实现了变量的并发、错误引用等检查
- 
-.. node:: 
-	由于RUST的类型系统的强大，因此不可避免在类型以及变量使用上，相比较C在使用上要更加复杂一点，但是这种复杂，在原有C语言里面也是存在的(这个意思是，如果C要实现RUST 提供的加强能力，也必须要额外编写代码)
-
-
-静态类型
-^^^^^^^^^
-可喜可贺，RUST 是一种静态类型语言，和C一样，所有变量的类型在编译阶段就确定下来了，但是比C稍微强的是，RUST
-编译器支持编译期间的类型推导
-
-
-
-变量的类型
-^^^^^^^^^^^^
-和C类似，RUST的基本数据类型有：
-
- - 符号整数：  i8 i16 i32 i64 i128 以及 isize(平台相关 指针宽度)
- - 无符号整数: u8 u16 u32 u64 u128 以及 usize
- - 浮点数： f32 f64 
- - char: 单个unicode字符,4byte 
- - bool: 只能是true 和 false 
- - 单元类型 unit：() 只能为空 
- 
-复合类型：
- - 数组类型：如 [1,2,3]
- - 元组类型：如(1,true) 
-
-注意区别和C的不同：
- - char 是4byte 
- - bool 只有两个值 更加明确
- - 多了一个unit类型
- - 元组可以类比为 C里面的结构体
-
-变量声明
-^^^^^^^^
-RUST的变量声明格式为 :  let  + {mut} + 变量名 + {: 类型}   
-
- - mut 是可选的，用来声明可变变量，可变变量下一小节说明
- - :类型: 类型说明是可选的，关于默认类型推导后面专门说明
- 
-.. code-block:: c
-
-	#声明变量
-	let int32: i32 = 123;
-	let mut int32: i32 = 123;
-
-变量类型推导
-^^^^^^^^^^^^^^
-上一小节，我们说变量声明的类型可能是可选的，RUST 提供以下几种机制，在编译阶段，自动推导出类型
-
- - 显示给出类型：  let a : i32 显示声明a 的类型为i32 
- - 通过后缀:  let a = 12i32， 利用初始值的后缀 声明a的类型为i32
- - 默认类型:  let a = 12;  RUST 默认整数类型为 i32 浮点型默认为 f64 
- - 上下文推断: RUST 不仅仅只是根据初值定义类型，还可以通过上下文的使用 决定类型
-
-
-不可变的变量
-^^^^^^^^^^^^^^
-C语言定义一个不可变的变量，我们都知道可以使用const关键字
-
- - const 关键字用于声明一个不可变变量,编译器在编译时，如果发现有人尝试对其修改 会报错
-
-RUST是怎么样定义不可变变量？
-
- - 不可变变量:  let variable, 声明不可变变量，和C语言的const变量类似，rust的类型检查会更为严格
-
-
-注意：RUST的不可变变量和常量的区分：常量必须给出显示的类型声明，，不可变变量 可以通过赋值语句，动态的初始化。
-
-为什么建议使用不可变变量？
-从RUST的变量声明上，我们就可以看出来，默认如果不加mut，变量都会声明为不可变变量，在C语言中我们一般没有这个习惯，RUST就是要强行反转这个习惯，变量在一般情况下，只允许使用一次，用完以后，就不能修改，只有在明确后续需要修改的时候，需要把变量声明为可变变量；这样做的好处是，可以预防一些bug以及更加方便做并发编程
-
-
-常量
+异常
 ^^^^^^
-C语言定义一个基本常量，一般我们使用#define 关键字
+由于C/C++经常由于对返回值漏检查，因此，现在大多数语言都使用了异常机制，如果你使用过异常机制，你会发现他得最大特点在
 
- - #define 关键字 在预编译阶段 代码就会被替换成常量，常量并不是变量，只是作为简单的字符串替换
- - 常量: const  AAA_BBB_CCC: DATA_TYPE; 必须显示给出类型定义在编译阶段类型的内存大小以及值就必须要确认下来，不允许在发生改变，有点像C里面的宏常量
-
-
-遮蔽
-^^^^^
-我们知道，C语言允许在不同作用域内定义重名变量，而且该变量只在最内层作用域生效；
-RUST 则不同，RUST 允许在同一个作用域，重复定义变量，相同作用域内的变量 一旦重新定义，则会抛弃之前的定义
-
-为什么需要这个能力？
-
- - 当之前变量使用完成以后，我们希望复用变量名，可以抛弃掉第一个变量，这样可以不用定义大量的label，可读性会更好（持有怀疑态度，虽然我有时确实也会遇到类似问题，但是不一定这就是好的解决方法）
- - 节省内存：这个是我认可的，因为一个已经不在使用的变量，我们知道他依然会占用一个栈内存，直到作用域结束，但是通过遮蔽，可以复用或者释放之前变量内存
+ - 如果函数调用链某一个环节发生了错误(没有处理异常) 该异常会一直向上传递，直到有人捕获他或者触发main crash 
+ - 异常得好处在于，如果错误没有被捕获，程序不会在错误状态下继续运行
+ - 不需要向C一样，在每一级都处理异常，优化了代码
  
-函数
--------
+但是异常也引入了一些新的问题，在C里面，由于错误会被一层一层处理，因此一旦错误发生，是比较容易追溯；而且当前函数只需要关注calle可能得错误即可；
+但是由于异常引入，导致可能错误陷入很深，并且如果中间调用者也不对错误进行正确捕获，最终也会导致异常无法追溯
 
-声明
-^^^^^^
- - fn用来声明函数，其余和C一样
+总结一下，错误处理在编程中是必须要处理得，好的错误处理应该完成这些功能
 
-参数
-^^^^^
- - 通过(var1 : datatype,  var2 : datatype) 定义了两个类型的变量
 
-语句&表达式
-^^^^^^^^^^^^^
-本小节对于习惯使用C 但是第一次解除RUST的人可能有点别扭，RUST有一个叫做表达式的概念；
-从代码直观编程上看，语句是有”;“ 作为结尾的， 表达式没有 ";"  下面是一个最直观的例子
+什么是好的错误处理
+^^^^^^^^^^^^^^^^^^
+
+ - 每一级调用的错误是明确的，并且需要正确的处理
+ - 虽然错误都要捕获，但是最好不要有很多检查代码，错误处理代码应该尽可能优雅简洁，可读性要好，尽量和正常逻辑有明显得分界线(C做的不好 异常得try catch 是一个好的例子)
+ 
+
+enum 枚举
+^^^^^^^^^^
+在正式介绍RUST 错误处理之前，先简单介绍一下 RUST 中的枚举,枚举基本上和C 类似，看下面代码 
 
 .. code-block:: c
+ 
+	enum COLOR {
+    Red,
+    Yellow,
+    Blue,
+	}
 
-	fn main() {
-		let y = {
-			let x = 3;
-			x + 1
-		};
-		println!("The value of y is: {}", y);
+	fn func(color: COLOR) {
+		match color {
+			COLOR::Red =>  println!("red"),
+			COLOR::Yellow =>  println!("Yellow"),
+			//COLOR::Blue =>  println!("Blue"), this would error
+		}
 	}
 	
-这里使用的是一个块表达式
+	fn main() {
+		func(COLOR::Red);
+		func(COLOR::Yellow);
+		func(COLOR::Blue);
+	}   
 
-返回值
-^^^^^^^
+一个简单的枚举使用示例，match 类似于switch case, 一个match 必须要匹配所有的枚举值，当然也有一种默认写法 
 
- - 通过类似 fn a() -> i32 {} 定义一个返回值是i32类型的函数
- - 函数返回值 必须通过表达式的形式返回,RUST没有return 关键字 
+.. code-block:: c
+ 
+	enum COLOR {
+    Red,
+    Yellow,
+    Blue,
+	}
 
-下面是一个简单的示例:
+	fn func(color: COLOR) {
+		match color {
+			COLOR::Blue =>  println!("Blue"),
+			_ =>  println!("not blue"),
+		}
+	}
+	
+	fn main() {
+		func(COLOR::Red);
+		func(COLOR::Yellow);
+		func(COLOR::Blue);
+	}   
+
+试一下把 _ =>  println!("not blue"), 放到第一行 看看会发生什么？ match 是顺序匹配的, _ 隐含有匹配所有的含义
+
+
+
+枚举也允许指定不同的类型，看示例 
+
+.. code-block:: c
+ 
+	enum COLOR {
+    Red(i32),
+    Yellow(String),
+    Blue,
+	}
+
+	fn func(color: COLOR) {
+		match color {
+			COLOR::Red(a) =>  println!("red value is {}",a ),
+			COLOR::Yellow(s) =>  println!("string value is {}",s),
+			COLOR::Blue =>  println!("blue"),
+		}
+	}
+	
+	fn main() {
+		func(COLOR::Red(100));
+		func(COLOR::Yellow("Hello".to_string()));
+		func(COLOR::Blue);
+	}   
+
+Result&?
+^^^^^^^^^^^^^
+Result 是一种枚举类型 
 
 .. code-block:: c
 
+	enum Result <T,E> {
+		Ok(T),
+		Err(E),
+	}
+
+这段代码利用了类似C++泛型的概念，暂时先不关注；Result 是预定义在RUST 标准类型库的，也就是我们不需要自己定义，可以直接使用
+
+.. code-block:: c
+
+	fn get_num(i: i32) -> Result<i32, &'static str> {
+		if i%2 == 0 {
+			Ok(i)
+		} else {
+			Err("not invaliable") 
+		}
+	}
+
+	fn main() { 
+		match get_num(11) {
+			Ok(i) => println!("get num {}",i),
+			Err(s) => println!("get num failed {} ",s),
+		}
+	}
+
+Result 枚举返回值主要解决什么问题？ 
+
+ - Result 明确了函数一定有是有正确和错误返回值的(Ok Err) 
+ - Result 明确了调用者必须要合理对待区分不同返回值
+
+还有哪个问题没有解决？
+ - match 引入了代码检查分支，此时代码依然还是比较冗余的，可读性不好 
+
+让我们看一个片段
+
+.. code-block:: c
+
+	fn read_file(filename: &str) -> Result<String, io::Error> {
+		let mut s = String::new();
+		let result = File::open(filename);
+		
+		let mut f = match result {
+			Ok(file) => file,
+			Err(e) => return Err(e);
+		};
+		
+		match f.read_to_string(&mut s) {
+			OK(_) => Ok(s),
+			Err(e) => Err(e),
+		}
+	}
+
+为了正确处理返回值，我们依然不得不写很多的match 逻辑，为了简化这种逻辑，RUST 提供了 精简版的写法
+
+.. code-block:: c
+
+	fn read_file(filename: &str) -> Result<String, io::Error> {
+		let mut s = String::new();
+		let mut f = File::open(filename)?;
+
+		f.read_to_string(&mut s)?;
+		Ok(s),
+	}
+
+?的意思是，如果返回值是Err,则会在当前代码停止并直接返回错误，如果OK，则帮助我们把ok内容返回
+
+.. code-block:: c
+
+	fn read_file(filename: &str) -> Result<String, io::Error> {
+		let mut s = String::new();
+		File::open(filename)?.read_to_string(&mut s)?;
+		Ok(s),
+	}
+
+Result panic& unwrap expect
+^^^^^^^^^^^^^^^^^^^^^^^
+panic 使用场景一般发生在: 当某个错误发生以后，程序无法恢复 最简单的panic 是: panic! 宏
+
+
+.. code-block:: c
+
+	panic!("this error unrecoverable")
+
+RUST 还提供了一种错误处理，如果calle的错误我们不需要自己处理(不是忽略) 默认错误发生动作不再是return(见?) 而是直接panic 可以使用 unwrap 和 expect 
+
+.. code-block:: c
+
+	fn read_file(filename: &str) -> String {
+		let mut s = String::new();
+		let mut file = File::open(filename).unwrap(); //OK，解压OK内容并且返回，否则panic 
+		let mut file = File::open(filename).expect("failed to open file"); // OK，解压OK内容并且返回，否则panic 并提供更多信息
+	}
+
+
+option
+^^^^^^^
+Option 也是一个enum 类型 
+
+.. code-block:: c
+
+	enum Option <T> {
+		Some(T),
+		None,
+	}
+
+相比较Result,Option 不在提供Err的返回，而是用Some替换了Ok,用None 替换了Err, 这种相比较Result 有以下好处：
+
+ - 当我们有一个函数 比如是 get_vec 从数组获取某个元素，当获取不到的时候，不应该被看作是错误或者是异常，而应该作为空值正常处理
+
+ .. code-block:: c
+ 
+ 
+	use std::fs::File;
+	use std::io::Read;
+	
+	fn read_file_no_err(filename: &str) -> Option<String> {
+		let mut s = String::new();
+		let mut f = match  File::open(filename) {
+		    Ok(file) => file,
+		    Err(e) =>   { 
+		            println!("open failed"); 
+		            return None;
+		    },
+		};
+		
+		match f.read_to_string(&mut s) {
+		    Ok(_) => Some(s),
+		    Err(e) => return None,		    
+		}
+	}
+	
 	fn main() {
-		let x = plus_one(5);
-
-		println!("The value of x is: {}", x);
+	    let op = read_file_no_err("./a.txt");
+	    if op.is_some() {
+	        println!("read string {} ", op.unwrap());
+	    } else {
+	        println!("read None");
+	    }
 	}
 
-	fn plus_one(x: i32) -> i32 {
-		// x + 1;错误
-		x+1 //正确
-	}
+这里我们重新定义了readfile的返回值，如果失败，返回None，成功则返回读取的字符串
 
-注释
--------
-单行注释和多行注释，和C语法一致
+Option如何获取Some的值？ Option也支持和Result的一样的语法, ?
+
+ .. code-block:: c
+
+
+	fn get_num(num: i32) -> Option<i32> {
+		if num % 2 == 0  {
+			return Some(num);
+		}
+		None
+	}
+	
+	fn test(num: i32) -> Option<i32> {
+		//let some_val = get_num(num)?;
+		//let some_val = get_num(num).unwrap();
+		let some_val = get_num(num).expect("invalid num");
+	
+		Some(some_val+1)
+	}
+	
+		
+	fn main() {
+		let val = test(13);
+		if val.is_some() {
+			println!("get num success {}", val.unwrap());
+		} else {
+			println!("get num None");
+		}
+	}
+	
+总结
+^^^^^^
+ - RUST 支持错误返回类型经常使用 Result 和 Option 两个枚举类型 
+ - Result 和 Option 都支持 ? 辅助，正确情况可以用来获取 Ok/Some value, 错误情况支持 对 Err() None的返回
+ - Result 和 Option 都支持unwrap/expect，正确情况可以用来获取 Ok/Some value, 错误情况触发panic 
+ - Option 相比较Result 多了 is_some 和 is_none 的判断，使用者根据自身情况使用
+ - Option 相比较Result 多了 unwrap_or, 当返回值为None的情况下，用来返回默认值 
+
 
 控制流
 -------
@@ -894,7 +1183,7 @@ while 的条件，由于基本和C实现一样，只给出示例，不过多说�
 
 for
 ^^^^^
-RUST的for实现有点类似于python等上层语言，支持对高级类型的遍历，下面是一个对vector类型的遍历，关于vector类型，在类型系统讲解
+RUST的for实现有点类似于python等上层语言，支持对高级类型的遍历，下面是一个对vector类型的遍历
 
 .. code-block:: c
 
@@ -905,94 +1194,9 @@ RUST的for实现有点类似于python等上层语言，支持对高级类型的�
 		println!("LIFTOFF!!!");
 	}
 
-总结
------
-如果不考虑高级类型以及其他高级功能，我们本章了解了RUST 的基本编程语法
 
- - 基本类型
- - 变量声明
- - 函数
- - 控制分支
-
-OK，我想说，这里其实已经涵盖了几乎C语言具备的所有能力了，不是吗？可以试着看一下以下代码，如果可以看懂，
-证明基本代码语法就就学习合格了，在尝试做几个练习，做一些巩固
-
-猜数字游戏
-^^^^^^^^^^^
-
-练习
-^^^^^
-- 在华氏温度和摄氏度之间转换温度。
-- 生成 n 阶斐波那契数列。
-- 打印圣诞颂歌 “The Twelve Days of Christmas” 的歌词，利用歌曲中的重复部分（编写循环）。
-
-
-关于所有权
-------------
-上一个章节，我们已经学习了一些基本变量和基本的编程语法，这一节，我们将尝试讨论以下RUST里面非常重要的一个概念: 所有权，介绍之前，先复习一些概念
-
-栈和堆
-^^^^^^
-我们假设C语言是之前的基本开发语言，这两个概念对我们一定不陌生了 
- - 如果变量 不是通过malloc申请的内存，那么使用的是栈内存或者bss段内存
- - 从堆上分配的内存,只能通过指针访问
- - malloc分配的内存,在没有free之前，生命周期都是有效的
-
-作用域的概念我们这里不介绍，RUST基本和C一样
-
-栈变量
-^^^^^^^
-让我们先看一下栈上的变量，以及生命周期
-
-.. code-block:: c
-
-	fn func1(mut x: i32, mut y: i32) {
-		x = x + 1;
-		y = y + 1;
-		println!("func1 : x = {:?} y = {:?}\n", x, y);
-	}
-	
-	fn main() {
-	{
-			let x = 5;
-			let y = x;
-	
-			println!("before: x = {:?} y = {:?}\n", x, y);
-			func1(x, y);
-			println!("after: x = {:?} y = {:?}\n", x, y);
-		}
-		//println!("after: x = {:?} y = {:?}\n",x,y);
-	}
-
-这个行为和C是类似的，存在于栈上的变量是会采取copy value的方法，并且只会在当前作用域内生效，作用域外该变量不在生效
-
-
-堆内存维护
-^^^^^^^^^^^
-OK,让我们来到今天的重头戏，变量存在于堆的内存 RUST是如何维护的；
-
-C里面关于内存的问题，一直以来就是问题重灾区，无论是 uaf(user after free) 或者是double free，本质上的问题都是因为程序要自己维护堆上的内存分配和释放；如果接触过JAVA的，我们知道，java里面提出了
-GC 垃圾回收的概念，java自己会维护 new（）出来的变量的引用情况，一旦没有任何人在使用，则对齐进行释放；
-
-RUST也提供了内存自动销毁的能力，但是并没有利用GC机制，而是利用了所有权的机制: 
-
-
-
-上面三条就是RUST致力于解决 内存问题得原则，让我们看一下: 
-
- - 利用生命周期范围，帮助程序解决忘记内存释放得问题
- - 利用唯一所有者，解决传统维护GC得工作量，性能更好，同时也能解决并发问题(谁应该释放得问题 比如double free)
-
-思考:  这个原则有没有局限性? 比如有没有可能一个变量得内存需要有多个所用者?  C语言是如何管理内存得？
-
-所有权move
-^^^^^^^^^^^
-看下面代码，实际生产场景会报错,这段代码向我们揭示了一个
-
-
-.. code-block:: c
-
-
+大练习：RUST实现链表
+---------------------
 
 
 
