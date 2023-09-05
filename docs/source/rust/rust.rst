@@ -1198,9 +1198,236 @@ RUST的for实现有点类似于python等上层语言，支持对高级类型的�
 大练习：RUST实现链表
 ---------------------
 
+在真正实现链表之前，先让我们介绍一些前置内容
+
+box
+^^^^^^
+BOX 在RUST 里面是一个堆内存指针的概念，见代码
+
+.. code-block:: c
+
+	fn main() {
+		let box_ptr: Box<i32> = Box::new(10);
+		println("{}",box_ptr);
+		println("{}",*box_ptr);
+	}
+
+上述代码隐含有: 
+
+ - 在堆上分配了一个4byte的内存，并用10去初始化他(BOX内部类型必须是大小确定的) 
+ - box在生命周期结束后，会自动调用drop，释放内存(内存自动释放)
+ - 使用"*box_ptr" 和 "box_ptr" 效果是一样的，因为RUST会自动解引用
+
+结构体定义
+^^^^^^^^^^^
+
+.. code-block:: c
+
+	struct Node {
+		value: i32,
+		//Option是因为next可能为None,为什么这里用Box<Node> 而不是 &Node ? 
+		next:  Option<Box<Node>>, 
+	}
+	
+	struct LinkedList {
+		head: Option<Box<Node>>, //指向节点头
+		size: usize, // 声明链表大小
+	}
+
+之前我们已经学习过引用(借用)了，结构体里面不允许使用 &Node 引用类型，想一下，RUST为了保证所有权，需要检查借用期间是否有其他可变变量(引用),在使用，而定义在结构体里面的引用无法实现这个功能, 无法解释自己是从哪里借用的
 
 
+面向对象的方法
+^^^^^^^^^^^^^^^
+可以给类定义方法，看代码
 
+.. code-block:: c
 
+	struct Node {
+		value: i32,
+		//Option是因为next可能为None,为什么这里用Box<Node> 而不是 &Node ? 
+		next:  Option<Box<Node>>, 
+	}
+	
+	struct LinkedList {
+		head: Option<Box<Node>>, //指向节点头
+		size: usize, // 声明链表大小
+	}
 
+	impl Node {
+		pub fn new(value: i32, next: Option<Box<Node>>) -> Node {
+			Node {value: value, next: next}
+		}
+		
+		pub fn show(&self) {
+			println!("{}", self.value);
+		}
+	}	
+	
+	impl LinkedList {
+		pub fn new() -> LinkedList {
+			LinkedList {head: None, size: 0}
+		}
+		
+		pub fn size(&self) -> usize {
+			self.size //思考一下 是否会涉及 所有权转移 为什么？
+		}
+
+		pub fn display(&self) {
+			let mut curr : &Option<Box<Node>> = &self.head; //思考 为什么要用引用？
+			println!("show list({}): ", self.size);
+			while curr.is_some() {
+			    let curr_node : Option<&Box<Node>> = curr.as_ref(); // 思考一下 这里会发生什么？
+			    let curr_node : &Box<Node> = curr_node.unwrap();
+				curr_node.show();
+				curr = &curr_node.next;
+			}
+		}
+	}
+
+	fn main(){
+		let list : LinkedList = LinkedList::new();
+		assert_eq!( 0 , list.size());
+		list.display();
+	}
+
+所有权在讨论
+^^^^^^^^^^^^^^
+让我们尝试解决一下上面的几个思考: 
+
+.. code-block:: c
+
+	struct Test {
+		value: String,
+	}
+	
+	impl Test {
+		pub fn new(value: &str) -> Test {
+			Test {value: value.to_string()}
+		}
+		pub fn failed_func(&self) {
+			let s = self.value;  // value是String类型，通过赋值会发生 所有权转移
+			println!("{}",s); //如果上述成立，在执行完这条语句后，s会释放掉self.value的内存
+		}		
+	}
+	
+	fn main(){
+		let t = Test::new("Hello");
+		t.failed_func();
+	}
+
+RUST 默认不允许 通过引用 ：访问内部数据 导致内部数据的所有权转移，这样做的后果是 导致结构体属性的内存所有权改变
+
+在继续看另外一个问题: 
+
+.. code-block:: c
+	
+	fn main(){
+		let mut s: Option<String> = Some("hello".to_string());
+		let s_ref: &mut Option<String> = &mut s;
+		
+		let s_val  = s.unwrap(); // 你知道这个使用s已经被转移了吗？
+		let s_val  = s.unwrap(); // 二次unwrap 失败
+	}
+
+其实我们遇到的很多所有权转移的问题，大部分原因是我们不清楚他发生了转移,
+
+.. code-block:: c
+	
+	fn main(){
+		let mut s: Option<String> = Some("hello".to_string());
+		let s_ref: &mut Option<String> = &mut s;
+		
+		//如果我们知道unwrap会转移所有权，就能理解这里为什么这里不允许这样用了
+		// 在借用期间, 居然想转移所有权? RUST 不允许
+		//let s_real:String = s_ref.unwrap();
+		
+		//如果确实希望转移所有权(你必须知道自己在做什么 后果是什么)
+		//let s_real: Option<String> = s_ref(或者s).take(); 	
+		//如果不希望转移所有权，但是又确实希望使用，但是没有办法解压怎么办？
+		let s_real2: Option<&String> =  s_ref.as_ref();
+		println!("{}", s_real2.unwrap());
+		let s_real2: Option<&String> =  s.as_ref();
+		println!("{}", s_real2.unwrap());
+	}
+	
+ - option take提供了强制转移所有权的能力，会把之前的值设置为None,返回新的所有权	
+ - option as_ref 支持返回一个Option<&Some>的变量，可以解压使用内存引用
+ 
+ 
+链表实现push/pop
+^^^^^^^^^^^^^^^^^^
+
+.. code-block:: c
+
+	struct Node {
+		value: i32,
+		//Option是因为next可能为None,为什么这里用Box<Node> 而不是 &Node ? 
+		next:  Option<Box<Node>>, 
+	}
+	
+	struct LinkedList {
+		head: Option<Box<Node>>, //指向节点头
+		size: usize, // 声明链表大小
+	}
+
+	impl Node {
+		pub fn new(value: i32, next: Option<Box<Node>>) -> Node {
+			Node {value: value, next: next}
+		}
+		
+		pub fn show(&self) {
+			println!("{}", self.value);
+		}
+	}	
+	
+	impl LinkedList {
+		pub fn new() -> LinkedList {
+			LinkedList {head: None, size: 0}
+		}
+		
+		pub fn size(&self) -> usize {
+			self.size
+		}
+
+		pub fn display(&self) {
+			let mut curr : &Option<Box<Node>> = &self.head; 
+			println!("show list({}): ", self.size);
+			while curr.is_some() {
+			    let curr_node : Option<&Box<Node>> = curr.as_ref(); 
+			    let curr_node : &Box<Node> = curr_node.unwrap();
+				curr_node.show();
+				curr = &curr_node.next;
+			}
+		}
+		
+		pub fn push(&mut self, val : i32) {
+		    let new_node : Box<Node> = Box::new(Node::new(val, self.head.take()));
+		    self.head = Some(new_node);
+		    self.size+=1;
+		}
+		
+		pub fn pop(&mut self) -> Option<i32> {
+            let pop_node: Option<Box<Node>> = self.head.take();
+            let pop_node: Box<Node> = pop_node.unwrap();
+            self.head = pop_node.next;
+            self.size-=1;
+            Some(pop_node.value)
+		}
+
+	}
+
+	fn main(){
+		let mut list : LinkedList = LinkedList::new();
+		assert_eq!( 0 , list.size());
+		list.display();
+		for i in 0..9 {
+		    list.push(i);
+		}
+		list.display();
+        while list.size() > 0 {
+            println!("pop:{}",list.pop().unwrap());
+        }
+		assert_eq!( 0 , list.size());
+	}
 
