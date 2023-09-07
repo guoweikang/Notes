@@ -25,9 +25,6 @@ gdb作为日常问题定位中不可缺少的一个工具，可以说和日常�
  - 基于目标语言(C)的调试：依赖源文件、依赖目标程序的调试信息(通过编译增加-g选项）
  - 基于汇编的调试：不依赖高级语言
 
-两种调试方法
-^^^^^^^^^^^^^^
-
 
 常用调试命令
 -------------
@@ -70,6 +67,11 @@ tui模式下 查看上一条 下一条命令
 QEMU GDB调试最新内核
 ---------------------
 
+环境准备
+^^^^^^^^^^^^^
+环境准备参考 :ref:`虚拟化环境`
+
+
 内核代码下载
 ^^^^^^^^^^^^^
 .. code-block:: console
@@ -97,6 +99,17 @@ https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html)
 	$ make ARCH=x86_64 x86_64_defconfig (配置内核)
 	$ make ARCH=x86_64 menuconfig (参考 
 	$ make -j8
+
+有了内核镜像，可以先简单测试一下: 
+
+.. code-block:: console
+    :linenos:
+	
+	$ qemu-system-x86_64  -kernel arch/x86/boot/bzImage -hda /dev/zero -append "root=/dev/zero console=ttyS0" -serial stdio -display none
+
+由于此时还没有提供根目录，内核在启动 执行到挂载根目录就会panic 
+
+
 根目录制作
 ^^^^^^^^^^^^
 .. code-block:: console
@@ -106,7 +119,7 @@ https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html)
     $ git clone git://git.buildroot.net/buildroot
 	$ make menuconfig （Target Options -> Target Architecture →x86_64; Filesystem images → ext2/3/4 root file system ）
 	$ make -j8
-	$ qemu-img convert -f raw -O qcow2 output/images/rootfs.ext2 rootfs.qcow2
+	$ qemu-img convert -f raw -O qcow2 output/images/rootfs.ext2 output/images/rootfs.qcow2
 
 qemu启动
 ^^^^^^^^^^^^
@@ -118,7 +131,7 @@ qemu启动
 .. code-block:: console
     :linenos:
 	
-	$ virt-install --name my_guest_os --import --disk path=/home/guoweikang/code/buildroot/output/images/rootfs.qcow2,format=qcow2 --memory 2048 --vcpus 1 --boot kernel=./arch/x86/boot/bzImage,kernel_args="root=/dev/sda  rw console=ttyS0,115200 acpi=off nokaslr"   --graphics none --serial pty --console pty,target_type=serial
+	$ virt-install --name my_guest_os --import --disk path=/home/test/code/buildroot/output/images/rootfs.qcow2,format=qcow2 --memory 2048 --vcpus 1 --boot kernel=./arch/x86/boot/bzImage,kernel_args="root=/dev/sda  rw console=ttyS0,115200 acpi=off nokaslr"   --graphics none --serial pty --console pty,target_type=serial --extra-args "-S s"
 
 参数解析： 
 
@@ -243,7 +256,8 @@ debugobjects
 状态查看
 ^^^^^^^^
 
-通过 /sys/kernel/debug/debug_objects/stats 可以查看对象统计状态, 参考： ref:`实验debug_objects_stats` 
+通过 /sys/kernel/debug/debug_objects/stats 可以查看对象统计状态, 
+参考： :ref:`实验debug_objects_stats` 
 
 
 对外API
