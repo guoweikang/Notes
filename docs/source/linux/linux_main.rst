@@ -177,16 +177,12 @@ Linux 通过改变了各个锁原语的实现，在尽可能保证原有锁的�
 
 PREEMPT_RT的引入对于在编写使用锁的代码提出了新的挑战,我们的代码能否同时在两个版本的kernel中运行?
 
-举个例子：
- - 在NON-PREEMPT_RT的kernel中，保护中断上下文需要使用 spin_lock_irq，但是在PREEMPT_RT的kernel中，
-中断一旦成为中断例程，spin_lock_irq行为就变成了普通的spin_lock 那么到底应该怎么写？这种情况 使用spin_lock_irq
-就可以了，默认在 NON-PREEMPT_RT 中， spin_lock_irq 会映射为普通的 spin_lock 
+:举个例子：
+
+在NON-PREEMPT_RT的kernel中，保护中断上下文需要使用 spin_lock_irq，但是在PREEMPT_RT的kernel中，中断一旦成为中断例程，spin_lock_irq行为就变成了普通的spin_lock 那么到底应该怎么写？这种情况 使用spin_lock_irq就可以了，默认在 NON-PREEMPT_RT 中， spin_lock_irq 会映射为普通的 spin_lock 
 
 关于这部分代码依然还有很多需要考量的地方，如果涉及到 spin 以及local lock，一定要同时考虑在两种kernel下，你的代码是否
 都能够胜任
-
-
-
 
 
 kobject&sysfs
@@ -238,7 +234,8 @@ kref 是 linux kernel的引用计数的封装结构，实际上非常简单，
 	kref_put(struct kref *kref, void (*release)(struct kref *kref))
 	kref_put_mutex(struct kref *kref,void (*release)(struct kref *kref),struct mutex *lock）
 	kref_put_lock(struct kref *kref,void (*release)(struct kref *kref),spinlock_t *lock))
-	
+
+
  - kref_get API很简单，只是对引用计数+1；
  - kref_put API很简单，只是对引用计数-1,同时判断引用计数 决定是否释放资源
  - kref_put_mutex/lock 和上面一样，只是释放资源的之前会先持锁

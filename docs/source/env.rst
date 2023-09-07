@@ -154,7 +154,8 @@ gdb安装
 
     $ sudo dnf install -y gdb
 
-.. _虚拟化环境
+.. _虚拟化环境:
+
 虚拟化工具安装
 --------------
 
@@ -409,7 +410,7 @@ VIM风格
 
 配置完成之后，下面是一个显示测试
 
-.. image:: ./images/tools/1.png
+.. image:: ./images/env/1.png
  :width: 400px
  
 安装kernelsty插件
@@ -545,6 +546,7 @@ VIM风格
 
 
 .. _邮件客户端:
+
 邮件客户端
 ============
 大量的 Linux 内核开发工作是通过邮件列表完成的。如果不加入至少一个列表，就很难成为社区的一名功能齐全的成员。但 Linux 邮件列表也对开发人员构成了潜在危险，他们面临着被大量电子邮件淹没、违反 Linux 列表上使用的约定或两者兼而有之的风险。
@@ -555,7 +557,7 @@ VIM风格
 	  不过，其他地方也有一些列表；其中一些位于 redhat.com/mailman/listinfo
 
 邮件客户端配置
-----------------
+---------------
 
 参考来自: 
  - https://docs.kernel.org/translations/zh_CN/process/email-clients.html
@@ -783,12 +785,12 @@ muttrc 参考配置:
 
 进入界面后 输入 "I" 触发fetchmail 
 
-.. image:: ./images/tools/2.png
+.. image:: ./images/env/2.png
  :width: 400px
 
 输入 "c" 切换邮箱
 
-.. image:: ./images/tools/3.png
+.. image:: ./images/env/3.png
  :width: 400px
 
 测试一个补丁
@@ -807,7 +809,7 @@ muttrc 参考配置:
 
 内容格式如下:
 
-.. image:: ./images/tools/4.png
+.. image:: ./images/env/4.png
  :width: 400px
 
 
@@ -830,7 +832,7 @@ muttrc 参考配置:
 
 	$./scripts/get_maintainer.pl  0001-debugobjects-add-pr_warn.patch  --获取邮件接收人
 
-.. image:: ./images/tools/5.png
+.. image:: ./images/env/5.png
  :width: 400px
  
 前面的是需要主送的，open是需要抄送的，
@@ -846,6 +848,6 @@ muttrc 参考配置:
 ^^^^^^^^
 mutt 应该可以收到邮件，我们假设我们是 maintainer， 对邮件进行回复，提出意见
 
-.. image:: ./images/tools/6.png
+.. image:: ./images/env/6.png
  :width: 400px
 

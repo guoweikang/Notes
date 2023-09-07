@@ -172,6 +172,7 @@ libvirt源码基本上包含上述三个层级，
 	$export LIBVIRT_LOG_OUTPUTS = 
 
 代码的调试
+
 .. code-block:: c
 	:linenos:
 	
@@ -204,7 +205,6 @@ libvirt守护进程对外提供API或者为工具提供访问能力，主要通�
  - 远端的TCP端口
 
 
-
 :单体守护进程系统模式下的通信通道:
 
   -  /var/run/libvirt/libvirt-sock : 提供完整的读写权限，libvirt提供API的主要通道
@@ -214,7 +214,8 @@ libvirt守护进程对外提供API或者为工具提供访问能力，主要通�
   - TCP 16514 : 一个tls监听端口 远端访问接口
 
 :单体守护进程会话模式下的通信通道:
-和系统模式类似，只是目前前缀改为: /var/run/user/$UID
+
+系统模式类似，只是目前前缀改为: /var/run/user/$UID
 
 
 工具的使用
@@ -304,7 +305,6 @@ virsh shutdown定义位于./tools/virsh-domain.c
 可以看到 virsh shutdown 支持4个模式，我们当前是没有传入mode，也尝试了指定mode，发现只有acpi可以执行下去
 
 .. code-block:: c
-	:emphasize-lines: 30
 	:linenos:
 	
 	while (tmp && *tmp) {                                                        

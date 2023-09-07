@@ -98,8 +98,8 @@ DTS基本语法
 	 
 	 node1: node@1 {
 		a-cell-property = <1,2,3,4>
-	 };
-};
+	};
+	};
 
 解释：
  - node@1: node 是节点名称，比如cpu memory， @后面的number标识 
@@ -180,6 +180,7 @@ linux DTS构建
 ---------------
 
 可以在内核的构建中看到,dtb构建通过平台选择构建
+
 .. code-block:: c
     :linenos:
 	

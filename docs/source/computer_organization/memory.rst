@@ -5,8 +5,9 @@
 https://www.youtube.com/watch?v=7J7X7aZvMXQ&t=527s 
 https://thecrashcourse.com/courses/registers-and-ram-crash-course-computer-science-6/
 
- .. image:: ./images/2.png
- :width: 800px
+.. image:: ./images/2.png
+	:width: 800px
+
 
 上图展示了内存数据通道，这里展示的一个内存条 一共有 8个 芯片，这8个芯片并行工作
 
