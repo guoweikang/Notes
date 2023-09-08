@@ -3,7 +3,7 @@ LinuxDFX
 ==========
 
 gdb
-======
+====
 
 前言
 ------
@@ -92,12 +92,13 @@ QEMU GDB调试最新内核
 内核配置编译
 ^^^^^^^^^^^^^^
 https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html) 
+需要关闭 CONFIG_RANDOMIZE_BASE   打开CONFIG_GDB_SCRIPTS 
 
 .. code-block:: console
     :linenos:
 	
 	$ make ARCH=x86_64 x86_64_defconfig (配置内核)
-	$ make ARCH=x86_64 menuconfig (参考 
+	$ make ARCH=x86_64 menuconfig 
 	$ make -j8
 
 有了内核镜像，可以先简单测试一下: 
@@ -109,6 +110,44 @@ https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html)
 
 由于此时还没有提供根目录，内核在启动 执行到挂载根目录就会panic 
 
+gdb调试
+^^^^^^^^^^^^
+
+现在可以尝试gdb 调试内核了
+
+.. code-block:: console
+    :linenos:
+	
+	$ qemu-system-x86_64 -s -S -no-kvm -kernel arch/x86/boot/bzImage -hda /dev/zero -append "root=/dev/zero console=ttyS0 nokaslr" -serial stdio -display none
+
+.. note:: 
+
+	这里我们启动内核增加了一个 nokaslr选项，关于kaslr的介绍请看 https://lwn.net/Articles/569635/, 如果有机会，我们在内核安全章节可能会学习介绍他
+	
+这里我们增加了 -s -S 选项，该选项会让GDB 卡住，直到gdb client 连接
+
+修改~/.gdbinit 设置自动加载内核提供的gdb 脚本
+ 
+ .. code-block:: console
+    :linenos:
+	
+	add-auto-load-safe-path /home/test/code/linux/scripts/gdb/vmlinux-gdb.py
+
+下面命令是在gdb里面执行的
+
+.. code-block:: console
+    :linenos:
+	
+	$ 在另外一个窗口执行
+	$ cd  /home/test/linux/
+	$ gdb ./vmlinux
+	$ target remote localhost:1234
+	$ lx-symbols
+	$ break start_kernel 
+	$ layout src
+
+现在可以单步调试了 其他命令参考
+https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html
 
 根目录制作
 ^^^^^^^^^^^^
@@ -122,7 +161,7 @@ https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html)
 	$ qemu-img convert -f raw -O qcow2 output/images/rootfs.ext2 output/images/rootfs.qcow2
 
 qemu启动
-^^^^^^^^^^^^
+^^^^^^^^
 现在已经拥有
 
   - 内核image: arch/x86/boot/bzImage
@@ -131,18 +170,10 @@ qemu启动
 .. code-block:: console
     :linenos:
 	
-	$ virt-install --name my_guest_os --import --disk path=/home/test/code/buildroot/output/images/rootfs.qcow2,format=qcow2 --memory 2048 --vcpus 1 --boot kernel=./arch/x86/boot/bzImage,kernel_args="root=/dev/sda  rw console=ttyS0,115200 acpi=off nokaslr"   --graphics none --serial pty --console pty,target_type=serial --extra-args "-S s"
-
-参数解析： 
-
-   - import: 表示跳过虚拟机安装，需要跟上 disk参数，从磁盘启动
-   - disk: path 指定虚拟机启动磁盘
-   - memory： 指定虚拟机内存(Mib)
-   - vcpus： 指定cpu数量
-   - boot: 指定引导参数 
-   - graphics: 不分配图形控制 
-   - serial: 指定虚拟机的串行设备 使用pty 
-   - console: 在虚拟机和主机之间建立文本控制台
+	$ qemu-system-x86_64 -s -kernel arch/x86/boot/bzImage \
+		-boot c -m 2049M -hda ../buildroot/output/images/rootfs.ext2 \
+		-append "root=/dev/sda rw console=ttyS0,115200 acpi=off nokaslr" \
+		-serial stdio -display none
 
 网络
 ======
