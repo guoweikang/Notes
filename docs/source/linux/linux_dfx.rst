@@ -175,6 +175,46 @@ qemu启动
 		-append "root=/dev/sda rw console=ttyS0,115200 acpi=off nokaslr" \
 		-serial stdio -display none
 
+内存
+====
+
+valgrind
+----------
+
+用户态 *动态* 内存泄漏诊断工具，主要用于监控堆内存，核心实现是对malloc/free wrap，这样程序堆上的内存都在他的监控之下，从而可以判断程序对这些内存的合法使用，可以用来检查
+
+ - 堆内存的非法访问(访问没有申请或者已经释放的内存 uaf)
+ - 堆内存的重复释放(double free)
+ - 堆内存泄漏(mem leak)
+
+使用方法
+^^^^^^^^^
+
+.. code-block:: console
+
+	valgrind [options] process
+
+llvm Sanitizers
+----------------
+*动态* 内存泄漏诊断工具，运行时检测
+
+ - addressSanitizer: 检测到内存越界、double free、uaf 等问题
+ - leakSanitizer: 查找是否存在内存泄漏
+ - MemorySanitizer：内存消毒，查找是否使用未初始化的内存
+ - UndefinedBehaviorSanitizer： 查找是否存在空指针访问、整型越界
+ - ThreadSanitizer： 线程并发相关
+
+
+使用方法
+^^^^^^^^^
+主要通过编译阶段打桩实现
+
+.. code-block:: console
+
+	$ clang-12 -g -O0 -fsanitize=address,leak,undefined -Wall -Wextra -std=gnu99
+	$ clang-12  -fsanitize=address,leak,undefined 
+
+
 网络
 ======
 
