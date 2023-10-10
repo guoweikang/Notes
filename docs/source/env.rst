@@ -64,7 +64,9 @@ https://github.com/v2fly/v2ray-core/releases/tag/v5.4.1
 	chmod 755 systemd/system/v2ray.service
 	chmod 755 systemd/system/v2ray@.service
 	sudo cp v2ray /usr/local/bin/
-	
+	sudo cp v2ctl /usr/local/bin/
+
+
 	sudo cp systemd/system/v2ray.service /etc/systemd/system/
 	sudo cp systemd/system/v2ray@.service /etc/systemd/system/
 	
@@ -76,7 +78,7 @@ https://github.com/v2fly/v2ray-core/releases/tag/v5.4.1
 	sudo touch  /var/log/v2ray/access.log 
 	sudo touch  /var/log/v2ray/error.log
 	sudo chmod 777   /var/log/v2ray/access.log 
-	sudo chmod 777/var/log/v2ray/error.log
+	sudo chmod 777 /var/log/v2ray/error.log
 
 在windows 上面把本地的v2ray的配置文件导出为config.json 
 
@@ -104,6 +106,7 @@ https://github.com/v2fly/v2ray-core/releases/tag/v4.31.0
     :linenos:
 	
 	$ sudo yum install -y net-tools
+	$ sudo apt-get install net-tools
 
 git安装
 ---------
@@ -112,6 +115,7 @@ git安装
     :linenos:
 	
 	$ sudo yum install -y git
+	$ sudo apt-get install git
 
 
 完成github用户配置 
@@ -130,7 +134,7 @@ git安装
 .. code-block:: console
     :linenos:
 	
-	$ git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+	$ git config --global url."git@github.com:".insteadOf "https://github.com/"
 
 开发必要工具
 --------------------
@@ -142,7 +146,8 @@ git安装
     :linenos:
 
     $ sudo dnf install -y rpm-build openssl-devel bc rsync gcc gcc-c++ flex bison m4 elfutils-libelf-devel ncurses-devel
-
+	$ sudo apt-get install git fakeroot build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison
+	
 gdb安装
 ^^^^^^^^^^^^^^^^
 
@@ -210,12 +215,37 @@ cscope 常用命令（vim 指令界面使用）： cs find c|d|e|f|g|i|s|t name
 |  i       | 查找包含本文件的文件                  |
 +----------+---------------------------------------+
 
+.. _RUST环境安装:
+
 RUST环境安装
 ================
 
 安装
 --------
 https://rustwiki.org/zh-CN/book/ch01-01-installation.html
+
+RUST提供了一些工具负责用于提升开发效率和标准:
+ 
+ - Cargo，内置的依赖管理器和构建工具，它能轻松增加、编译和管理依赖，并使其在 Rust 生态系统中保持一致。
+ - Rustfmt 确保开发者遵循一致的代码风格。熟悉clang-format/python-format的人对这个一定不陌生
+ - Rust Language Server 为集成开发环境（IDE）提供了强大的代码补全和内联错误信息功能。
+
+cargo 常用命令
+
+ - 新建空项目: cargo build 
+ - 项目文件 Cargo.toml :版本 依赖 说明
+ - 项目文件 Cargo.lock: 记录依赖详细版本
+ - 项目文件 src: 项目源码
+ - 构建项目: cargo build {--release}
+ - 构建文件 target/debug{release}/ : 构建产出
+ - 构建并运行项目: cargo run 
+ - 清理项目： cargo clean
+ - 检查项目： cargo check
+ - linter: cargo clippy
+
+VIM配置
+-------
+:ref: `RUST-VIM`
 
 
 VIM配置
@@ -541,6 +571,7 @@ VIM风格
 - cscope.po.out
 - tags
 
+.. _RUST-VIM:
 
 RUST vim配置
 -------------
@@ -696,7 +727,7 @@ VIMRC 配置
 - gi: 跳转到函数实现
 - gy: 跳转到类型定义
 - ctrl+o： 返回到刚才位置
-- 
+
 	
 .. _邮件客户端:
 

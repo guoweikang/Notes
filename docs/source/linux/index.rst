@@ -21,6 +21,7 @@ Contents
    基本介绍 <linux_introduction.rst>
    内核开发准备 <linux_tools_install.rst>
    内核基础机制 <linux_main.rst>
+   内存子系统 <mem.rst>
    驱动系统 <driver.rst>
    虚拟化 <kvm.rst>
    磁盘&文件系统 <fs.rst>
