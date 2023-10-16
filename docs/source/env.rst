@@ -98,6 +98,9 @@ https://github.com/v2fly/v2ray-core/releases/tag/v4.31.0
 	sudo systemctl enable v2ray
 	# 测试
 	$curl -x socks5://127.0.0.1:10808 https://www.google.com -v
+	# 设置github代理
+	$ git config --global http.proxy socks5://127.0.0.1:10808 
+	$git config --global https.proxy socks5://127.0.0.1:10808
 	
 网络工具安装
 --------------
@@ -245,6 +248,7 @@ cargo 常用命令
 
 VIM配置
 -------
+
 :ref: `RUST-VIM`
 
 
@@ -309,7 +313,7 @@ NERDTree时VIM的文件系统浏览器 使用该插件，用户可以直观地�
 	" Start NERDTree and put the cursor back in the other window.
 	autocmd VimEnter * NERDTree | wincmd p
 	nnoremap <F3> :NERDTreeMirror<CR>
-	nnoremap <F3> :NERDTreeMirror<CR>
+	nnoremap <F3> :NERDTreeToggle<CR>
 
 基本操作：以下命令都是在NEERDTREE页面操作
 

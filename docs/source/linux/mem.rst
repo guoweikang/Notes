@@ -189,7 +189,39 @@ Linux源码分析
 
 在ARM中，与页表相关的寄存器有：TCR_EL1, TTBRx_EL1
 
+关键代码：
 
+
+.. code-block:: c
+    :linenos:
+
+	/* 
+	 * 计算不同 页表映射的entry表示的大小位移，比如:
+     * 假设当前是4级页表 ( 0<=n <= 3)
+     * PTE SHIFT：4K = (12 - 3) * 1 + 3 = 12    	 
+	 * PMD SHIFT: 2M = (12 - 3) * 2 + 3 = 21   
+	 * PUD SHIFT: 1G = (12 - 3) * 3 + 3 = 30 
+	 * PGD SHIFT：512G = (12 - 3) * 4 + 3 = 39 
+	 * 假设当前是3级页表 ( 0<=n <= 3)
+     * PTE SHIFT：4K = (12 - 3) * 1 + 3 = 12    	 
+	 * PMD SHIFT: 2M = (12 - 3) * 2 + 3 = 21   
+	 * PGD SHIFT：1G = (12 - 3) * 3 + 3 = 30 
+	*/
+	#define ARM64_HW_PGTABLE_LEVEL_SHIFT(n) ((PAGE_SHIFT - 3) * (4 - (n)) + 3)
+
+	#define PMD_SHIFT               ARM64_HW_PGTABLE_LEVEL_SHIFT(2)  //如上21
+	#define PMD_SIZE                (_AC(1, UL) << PMD_SHIFT) // 2M
+	
+	// 注意: 三级页表 没有PUD 
+	#define PUD_SHIFT               ARM64_HW_PGTABLE_LEVEL_SHIFT(1) //如上30
+	#define PUD_SIZE                (_AC(1, UL) << PUD_SHIFT) // 1G
+	
+	// 注意: 三四级页表下 PGD 含义不同，三级页表，PGD = PUD 
+	#define PGDIR_SHIFT             ARM64_HW_PGTABLE_LEVEL_SHIFT(4 - CONFIG_PGTABLE_LEVELS)
+	#define PGDIR_SIZE              (_AC(1, UL) << PGDIR_SHIFT)
+	
+	
+	
 虚拟内存空间整体分布
 ---------------------
 
@@ -233,7 +265,6 @@ https://www.kernel.org/doc/Documentation/arm64/memory.rst
  - 用户态程序进入内核态之后，访问的是同一套内核地址
 
 
-
 内核内存管理
 =============
 
@@ -254,34 +285,27 @@ adrp 指令: ADRP  Xd, label; 利用当前PC 和label的相对地址，计算lab
 	ADRP  X0, data；
 
 
-测试环境
-^^^^^^^^^
-我们当前使用的是黑芝麻A1000，uboot参数：kernel_addr_r="0x90000000" 
-
-
 内核内存分布
 -------------
 
 整体布局描述
 ^^^^^^^^^^^^^
 
-arch/arm64/include/asm/memory.h * 定义了内核地址的范围
+内核的地址分布描述定义在:  arch/arm64/include/asm/memory.h 
+假设当前配置: 4K页(CONFIG_PAGE_SHIFT=12) VA地址是48BIT(256TB)
 
-假设当前配置: 4K页(CONFIG_PAGE_SHIFT=12) 虚拟内存可使用地址48BIT(256TB)
-
- 
 .. code-block:: c
     :linenos:
 	
 	/* 
 	 * STRUCT_PAGE_MAX_SHIFT 定义了一个 管理页表结构(struct page)的大小
 	 * PAGE_SHIT 是页表大小位移(比如 4K是12 16K是14 64K是16)
-	 * VMEMMAP_SHIFT是用于计算线性地址大小的除数
+	 * VMEMMAP_SHIFT 是用于计算线性地址大小的除数
 	 * 举例: 为了管理4GB大小的线性地址，需要使用 4GB/4KB = 1024 个页表, 每个页表大小如果占1B, 需要 1024 * 1B 的内存 
 	 * 因此页表所占内存计算公式为 : 需要映射的内存大小/页大小*页表内存 =   需要映射的内存大小/ (页大小 - 页表内存) 
 	*/
-	#define VMEMMAP_SHIFT   (PAGE_SHIFT - STRUCT_PAGE_MAX_SHIFT) // 目前是: 12（4KB） - 6(64B) = 6
 	
+	#define VMEMMAP_SHIFT   (PAGE_SHIFT - STRUCT_PAGE_MAX_SHIFT) // 目前是: 12（4KB） - 6(64B) = 6
 	// 计算管理128TB(0xffff800000000000 - 0xffff000000000000) 的线性内存 页表条目需要使用的内存大小	
 	#define VMEMMAP_SIZE    ((_PAGE_END(VA_BITS_MIN) - PAGE_OFFSET) >> VMEMMAP_SHIFT) // 目前是 128TB/4KB*64B=2TB  
 	
@@ -300,42 +324,102 @@ arch/arm64/include/asm/memory.h * 定义了内核地址的范围
 	
 	#define _PAGE_END(va)           (-(UL(1) << ((va) - 1)))
 
+下图以VA 39BIT 和 4K页做演示
 
-内核镜像布局描述
-^^^^^^^^^^^^^^^^^
+.. image:: ./images/mem/22.png
+ :width: 800px
+ 
+ 
+ 
+下图以VA48 BIT 和 4K页做演示
+
+.. image:: ./images/mem/23.png
+ :width: 800px
+ 
+内核内存管理的一部分工作，就是负责管理不同区域的内存的分配、释放
+
+接下来我们将先按照 内核启动顺序 剖析内核内存初始化过程  
+
+
+内核启动的内存初始化
+--------------------
+
+
+内核镜像
+^^^^^^^^^^
+
 内核镜像我们简单也可以理解为是一个二进制的文件，主要定义了代码段的布局情况,用于指导内核镜像分段的文件位于: 
 arch/arm64/kernel/vmlinux.lds.S, SECTIONS 描述了段的定义
 
-当然，也可以直接通过 *readelf -d  vmlinux* 获取内核链接后的文件，查看布局情况，这里只简单说明当前章节可能用到的段: 
+也可以直接通过 *readelf -d  vmlinux* 获取内核链接后的文件 查看布局情况
 
-
- - .head.text: 内核镜像的起始段，存放ELF 头部信息，该段的代码位于 arch/arm64/kernel/head.S ：__HEAD 
- - .text：代码段，内核代码都应该在这个段 
- - init_idmap_pg_dir：位于 __initdata_begin 的开始
- - 
-
-
-
-
-内核内存启动初始化
---------------------
-
-MMU开启
-^^^^^^^^^
-
-首先清楚一点，MMU应该在什么时候打开？如果页表没有建立好，就打开MMU 会发生什么情况？
+.. image:: ./images/mem/24.png
+ :width: 800px
+ 
+ 一阶段:镜像1:l映射
+^^^^^^^^^^^^^^^^^^^^^^
 
 当uboot 加载完成内核，并且跳转到内核起始位置的时候，此时MMU处于未打开的状态，因此此时CPU在执行内核代码是直接访问的物理内存;
 这段代码执行期间，严格意义上来说不能够访问类似于全局变量、函数等会涉及到 虚拟内存地址的代码
 
 内存初始化会分几个阶段，第一阶段，使能mmu，为了MMU使能后能够正常工作，需要先把 内核的镜像代码建立 VA 到PA的映射
 
+.. image:: ./images/mem/25.png
+ :width: 800px
+
+为什么是线性映射？因为PC在刚开启MMU的时候 PC的地址依然是物理内存地址 因此需要先建立1:1的映射
 
 
+线性映射的页表准备
+^^^^^^^^^^^^^^^^^^^^
 
-MMU开启代码演示
-^^^^^^^^^^^^^^^^^^
+映射表位置及大小: arch/arm64/kernel/vmlinux.lds.S 
+
+
+.. code-block:: c
+    :linenos:
+	
+	init_idmap_pg_dir = .;
+    . += INIT_IDMAP_DIR_SIZE;
+    init_idmap_pg_end = .;
+	
+	// 下面代码用于计算 虚拟内存需要多少的内存
+	
+	#define EARLY_ENTRIES(vstart, vend, shift, add) \
+        ((((vend) - 1) >> (shift)) - ((vstart) >> (shift)) + 1 + add)
+
+	#define EARLY_PGDS(vstart, vend, add) (EARLY_ENTRIES(vstart, vend, PGDIR_SHIFT, add))
+
+	#define EARLY_PAGES(vstart, vend, add) ( 1                      /* PGDIR page */                                \
+                        + EARLY_PGDS((vstart), (vend), add)     /* each PGDIR needs a next level page table */  \
+                        + EARLY_PUDS((vstart), (vend), add)     /* each PUD needs a next level page table */    \
+                        + EARLY_PMDS((vstart), (vend), add))    /* each PMD needs a next level page table */
+						
+	#define INIT_DIR_SIZE (PAGE_SIZE * EARLY_PAGES(KIMAGE_VADDR, _end, EARLY_KASLR))
+     
+	/* the initial ID map may need two extra pages if it needs to be extended */
+	#if VA_BITS < 48
+	#define INIT_IDMAP_DIR_SIZE     ((INIT_IDMAP_DIR_PAGES + 2) * PAGE_SIZE)
+	#else   
+	#define INIT_IDMAP_DIR_SIZE     (INIT_IDMAP_DIR_PAGES * PAGE_SIZE)
+	#endif  
+	#define INIT_IDMAP_DIR_PAGES    EARLY_PAGES(KIMAGE_VADDR, _end + MAX_FDT_SIZE + SWAPPER_BLOCK_SIZE, 1)
+	
+下图演示了 EARLY_PAGES 的计算公式 
+
+.. image:: ./images/mem/26.png
+ :width: 800px
+ 
+如果映射1M，需要考虑0的情况，因此代码中都做了+1处理 
+
+
+线性映射建立
+^^^^^^^^^^^^^^
+
 内核关键代码: arch/arm64/kernel/head.S是内核一开始启动的代码
+
+
+此外，宏的实现也考虑了一些额外的级别和特定的位移量（extra_shift），以根据不同的条件填充页表。
 
 .. code-block:: c
     :linenos:
@@ -362,15 +446,106 @@ MMU开启代码演示
      mov     x20, x0
      bl      create_idmap                    //建立内核代码内存映射 
 
-我们目前先只关注create_idmap，该函数主要初始化了 一个最重要的页表，就是把当前 内核镜像涉及到的物理内存 先建立页表，因此接下来就可以开启内存了
+
 
 .. code-block:: c
     :linenos:
           
     adrp    x0, init_idmap_pg_dir  // x0 = init_idmap_pg_dir 物理内存基址                                         
     adrp    x3, _text             // x3 =  内核镜像的起始地址的物理内存基址                                       
-    adrp    x6, _end + MAX_FDT_SIZE + SWAPPER_BLOCK_SIZE      // x6 = 内核镜像结束的物理内存地址 +                 
+    adrp    x6, _end + MAX_FDT_SIZE + SWAPPER_BLOCK_SIZE  // x6 = 内核镜像结束的物理内存地址                
     mov     x7, SWAPPER_RX_MMUFLAGS  
+
+    map_memory x0, x1, x3, x6, x7, x3, IDMAP_PGD_ORDER, x10, x11, x12, x13, x14, EXTRA_SHIFT
+
+
+关键函数说明: .macro map_memory, tbl, rtbl, vstart, vend, flags, phys, order, istart, iend, tmp, count, sv, extra_shift
+参数列表：
+- tbl：页表的位置。
+- rtbl：第一个级别的页表项应使用的虚拟地址。
+- vstart：映射范围的起始虚拟地址。
+- vend：映射范围的结束虚拟地址（实际映射的范围是vstart到vend - 1）。
+- flags：用于映射最后级别页表项的标志。
+- phys：与vstart对应的物理地址，假定物理内存是连续的。
+- order：一个值，表示页表的级别，即#imm（立即数）的2的对数，它表示PGD表中的条目数。
+- istart, iend, tmp, count, sv, extra_shift：这些是临时寄存器和标志，用于在宏内部进行计算和存储中间值。
+
+map_memory 给定的参数映射虚拟地址到物理地址，计算页表级别，并填充页表的不同级别。根据宏的调用情况，它可能涉及多个级别的页表。
+
+MMU开启
+^^^^^^^
+
+映射建立完成后就要准备开启MMU，代码依然位于 head.S 
+
+.. code-block:: c
+    :linenos:
+	
+	SYM_FUNC_START_LOCAL(__primary_switch)
+        adrp    x1, reserved_pg_dir
+        adrp    x2, init_idmap_pg_dir  //加载tTBR 基址为 init_idmap_pg_dir
+        bl      __enable_mmu
+	#ifdef CONFIG_RELOCATABLE
+        adrp    x23, KERNEL_START
+        and     x23, x23, MIN_KIMG_ALIGN - 1
+	#ifdef CONFIG_RANDOMIZE_BASE
+        mov     x0, x22
+        adrp    x1, init_pg_end
+        mov     sp, x1
+        mov     x29, xzr
+        bl      __pi_kaslr_early_init
+        and     x24, x0, #SZ_2M - 1             // capture memstart offset seed
+        bic     x0, x0, #SZ_2M - 1
+        orr     x23, x23, x0                    // record kernel offset
+	#endif
+	#endif
+        bl      clear_page_tables
+        bl      create_kernel_mapping   
+
+非线性二次映射 
+^^^^^^^^^^^^^^^
+
+下图演示了 二次映射的主要工作
+
+.. image:: ./images/mem/27.png
+ :width: 800px
+
+
+.. code-block:: c
+    :linenos:
+	
+	
+	SYM_FUNC_START_LOCAL(create_kernel_mapping)
+			adrp    x0, init_pg_dir
+			mov_q   x5, KIMAGE_VADDR                // compile time __va(_text)
+	#ifdef CONFIG_RELOCATABLE
+			add     x5, x5, x23                     // add KASLR displacement
+	#endif  
+			adrp    x6, _end                        // runtime __pa(_end)
+			adrp    x3, _text                       // runtime __pa(_text)
+			sub     x6, x6, x3                      // _end - _text
+			add     x6, x6, x5                      // runtime __va(_end)
+			mov     x7, SWAPPER_RW_MMUFLAGS
+			
+			map_memory x0, x1, x5, x6, x7, x3, (VA_BITS - PGDIR_SHIFT), x10, x11, x12, x13, x14
+
+上述动作 完成了第二阶段的映射  紧接着又通过绝对跳转 跳转到了 __primary_switched 
+
+.. code-block:: c
+    :linenos:
+	
+	ldr     x8, =__primary_switched 
+    adrp    x0, KERNEL_START                // __pa(KERNEL_START)           
+    br      x8             
+	SYM_FUNC_END(__primary_switch) 
+
+    bl      finalise_el2                    // Prefer VHE if possible
+    ldp     x29, x30, [sp], #16
+    bl      start_kernel                    // 正式进入内核
+    ASM_BUG()
+ 
+	
+
+
 
 
 
