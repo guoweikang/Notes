@@ -356,6 +356,7 @@ arch/arm64/kernel/vmlinux.lds.S, SECTIONS 描述了段的定义
 .. image:: ./images/mem/24.png
  :width: 800px
  
+ 
  一阶段:镜像1:l映射
 ^^^^^^^^^^^^^^^^^^^^^^
 
