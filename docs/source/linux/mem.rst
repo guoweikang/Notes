@@ -678,6 +678,7 @@ memblock的初始化 会默认是给一个控的静态数据结构(memblock.c)
 
 
 核心API: 
+
 - memblock_add(base,size) : 在memory区域增加 一段内存，该内存段表示内核可见
 - memblock_remove(base,size) :从在memory区域 移动走一段内存，该内存段对内核不再可见
 - memblock_reserve(base,size) : 在reserver 区域增加一段内存，表示该内存已经被使用
