@@ -149,6 +149,20 @@ gdb调试
 现在可以单步调试了 其他命令参考
 https://www.kernel.org/doc/html/next/dev-tools/gdb-kernel-debugging.html
 
+下面命令是在x86 调试arm64 里面执行的
+
+.. code-block:: console
+    :linenos:
+
+	$ gdb-multiarch vmlinux   
+	$ set architecture aarch64
+	$ target remote localhost:1234
+	$ lx-symbols
+	$ break start_kernel
+	$ layout src
+
+	
+	
 根目录制作
 ^^^^^^^^^^^^
 .. code-block:: console
@@ -174,6 +188,15 @@ qemu启动
 		-boot c -m 2049M -hda ../buildroot/output/images/rootfs.ext2 \
 		-append "root=/dev/sda rw console=ttyS0,115200 acpi=off nokaslr" \
 		-serial stdio -display none
+
+内核参数
+=========
+可以通过设置内核参数，调整内核行为，常用的参数比如: 
+
+ - loglevel: 0-7 设置日志等级
+ - log_buf_len: 动态调整日志存储大小
+ 
+
 
 内存
 ====

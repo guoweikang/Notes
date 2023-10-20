@@ -544,14 +544,239 @@ MMU开启
     bl      start_kernel                    // 正式进入内核
     ASM_BUG()
  
+
+初级内存管理
+----------------
+回顾上一节，我们讲过了 内核的镜像是如何被加载到内存，以及内核镜像自己又是如何建立页表，开启MMU，然后又重新建立映射的，
+上述过程会涉及到两个页表: idmap_pg_dir 以及 init_pg_dir
+本节我们继续探讨物理内存是怎么管理的
+
+设备树内存映射
+^^^^^^^^^^^^^^^
+为了管理物理内存，首先要知道有多大的物理内存，以及物理内存在CPU的物理地址范围，换言之，我们需要知道真实硬件的信息，
+那就不得不先把设备树解析出来，关于更多设备树的内容，请阅读 驱动章节 
+
+这里先让我们回顾一下 内核线性地址的划分: 
+
+.. image:: ./images/mem/22.png
+ :width: 800px
+ 
+可以找到一个FIXMAP 的虚拟内存空间，内核会使用这段虚拟内存 做一些前期初始化工作，关于fixmap的地址描述在 :/arch/arm64/include/asm/fixmap.h
+
+内核对于该地址空间的描述: 这段注释解释了在内核中定义的一组特殊虚拟地址，这些地址在编译时是常量，
+但在启动过程中才会与物理地址关联。这些特殊虚拟地址通常用于处理内核启动和底层硬件初始化等任务。
+
+
+我们通过图示展示一下 fixmap 内存区域主要功能 
+
+.. image:: ./images/mem/29.png
+ :width: 800px
+ 
+ 
+关键代码: 定义了FIXMAP的大小  以及常用函数
+
+.. code-block:: c
+    :linenos:
+	
+	__end_of_permanent_fixed_addresses // 是 enum fixed_addresses 的结束索引
+	//fixed_addresses 每增加一个功能，FIXMAP占用的虚拟内存就增加4K
+	#define FIXADDR_SIZE    (__end_of_permanent_fixed_addresses << PAGE_SHIFT) 
+	#define FIXADDR_START   (FIXADDR_TOP - FIXADDR_SIZE)
+	
+	#define __fix_to_virt(x)        (FIXADDR_TOP - ((x) << PAGE_SHIFT))  // 从FIX功能区 ENMU 得到该 内容所在 VA地址 
+	#define __virt_to_fix(x)        ((FIXADDR_TOP - ((x)&PAGE_MASK)) >> PAGE_SHIFT) // 从VA地址，得到该地址 的FIX功能区 ENUM
 	
 
+FDT其实一共占了4M的内存，实际上FDT的大小不能超过2M，这样作的目的是处于对齐的考虑
+
+.. image:: ./images/mem/30.png
+ :width: 800px
+
+
+接下来让我们具体看一下 FDT设备树的内存映射过程
+
+.. code-block:: c
+    :linenos:
+	
+	__primary_switched
+	   - early_fdt_map(fdt_phys) 
+	     - early_fixmap_init()  // 页表准备
+		 - fixmap_remap_fdt(dt_phys, &fdt_size, PAGE_KERNEL) // 页表填充
+
+
+这里我们在复习和学习一下 页表建立和内存映射: 
+ - 首先，要先准备好 页表的物理内存 (PGD 1页 PMD(按需 至少1页) PTE(按需 至少一页) ) 
+ - 然后，要知道要映射的 VA地址, 知道VA以后，可以知道要填充 哪条 PGD/PUD/PMD ENTRY
+ - 最后，需要知道给VA 分配对应的物理地址，就可以填充PTE
+
+我们用一个图示说明这个过程:
+
+.. image:: ./images/mem/31.png
+ :width: 800px
+
+
+
+那么FDT的页表物理内存 是如何得到的， 页表初始化代码位置在early_fdt_map  
+
+ - PGD: 会存在 init_mm.pgd 指针 
+ - PMD PUD PTE 放在三个静态数组中,bm_pud,bm_pmd,bm_pte 这里回顾一下 之前FDT的对齐，因为PTE只有一页，因此FDT必须要正好映射到2M的PMD内
+ - 利用  __pxd_populate 填充 pgd entry -> pmd,   pmd entry -> pte 
+ 
+注意: init_mm的初始化，会经过两次初始化，根据架构是否在 asm/mmu.h 定义了INIT_MM_CONTEXT ,决定init.mm的第二次初始化
+arm64场景下，会重新初始化 init_mm.pgd = init_pgd_dir， 这里和网上认为的 swapper_pgd_dir 有出入
+
+
+设备树认证完以后，fdt此时就可以正常访问了,arm其实对设备树进行了两次映射 
+
+.. code-block:: c
+    :linenos:
+	
+	//第一次
+	__primary_switched
+	   - early_fdt_map(fdt_phys) 
+	     - early_fixmap_init()  // 页表准备
+		 - fixmap_remap_fdt(dt_phys, &fdt_size, PAGE_KERNEL) // 页表填充
+	
+	//第二次 
+	start_kernel 
+	 - setup_arch
+	   - early_fixmap_init 
+	   - setup_machine_fdt
+	    - fixmap_remap_fdt
+	
+
+经过调查 两次映射 是由于 kasan的某个问题:  commit id  1191b6256e50a07e7d8ce36eb970708e42a4be1a
+
+fdt的第一次访问: 在完成fdt的内存映射以及校验和检查， 可以在 setup_machine_fdt 中尝试打印fdt 的 model 
+
+.. code-block:: c
+    :linenos:
+	
+	[    0.000000] Machine model: BST A1000B FAD-B //黑芝麻
+	[    0.000000] Machine model: Machine model: linux,dummy-virt // qemu 
+
+
+
+memblock管理器
+^^^^^^^^^^^^^^
+官方文档: https://docs.kernel.org/core-api/boot-time-mm.html
+
+这是一个鸡生蛋 蛋生鸡的问题，在系统boot启动阶段，由于此时 内核更高级的内存管理功能还没有初始化，这个阶段如果想要分配内存，并不能使用类似vmalloc，alloc_pages
+这种接口，但是又因为本身内存管理器的初始化也依赖内存分配(那是当然的),因此此时，内核需要一个简单的内存管理器(不依赖内存分配)，然后前期基于这个简单的
+内存管理器管理内存，等内核 真正意义上的内存管理器初始化之后 再去切换掉
+
+回顾我们之前 镜像映射、fdt 映射的过程，页表的物理内存都是镜像内的段、或者通过静态变量直接指定的，就是因为物理内存此时根本没有被管理起来
+
+
+memblock的核心结构如下图:
+
+.. image:: ./images/mem/32.png
+ :width: 800px
+
+
+memblock的初始化 会默认是给一个控的静态数据结构(memblock.c)
+
+
+核心API: 
+- memblock_add(base,size) : 在memory区域增加 一段内存，该内存段表示内核可见
+- memblock_remove(base,size) :从在memory区域 移动走一段内存，该内存段对内核不再可见
+- memblock_reserve(base,size) : 在reserver 区域增加一段内存，表示该内存已经被使用
+- memblock_free(base,size) : 在reserver区域释放一段内存，表示该内存不再被使用
+- memblock_mark_(hotplug/mirror/nomap(base, size);: 标记 mem中的内存
+- memblock_phys_alloc(size,align): 申请固定大小size  align对齐的物理内存
+- memblock_phys_alloc_range(size, align, start, end): 申请固定大小size  align对齐的物理内存
+
+
+物理内存第一阶段管理
+^^^^^^^^^^^^^^^^^^^^^^
+现在已经具有了 memblock 和 fdt，物理内存的初始化 始于 fdt扫描可用内存 : 
+
+.. image:: ./images/mem/33.png
+ :width: 800p
+ 
+以及 arm64_memblock_init
+
+.. image:: ./images/mem/34.png
+ :width: 800p
+ 
+ 
+setup_machine_fdt 会扫描 memory节点，并把内存插入到 memory中，可以通过给内核传入 memblock=debug开关打开相关日志 
+
+ .. code-block:: console
+    :linenos:
+	
+	[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x411fd050]
+	[    0.000000] Linux version 6.1.54-rt15-00057-g9af25a0cf1e8-dirty (guoweikang@ubuntu-virtual-machine) (aarch64-none-linux-gnu-gcc (Arm GNU Toolchain 12.3.Rel1 (Build arm-12.35)) 12.3.1 23
+	[    0.000000] Machine model: BST A1000B FAD-B
+	[    0.000000] earlycon: uart8250 at MMIO32 0x0000000020008000 (options '')
+	[    0.000000] printk: bootconsole [uart8250] enabled
+	[    0.000000] memblock_remove: [0x0001000000000000-0x0000fffffffffffe] arm64_memblock_init+0x30/0x258
+	[    0.000000] memblock_remove: [0x0000004000000000-0x0000003ffffffffe] arm64_memblock_init+0x94/0x258
+	[    0.000000] memblock_reserve: [0x0000000081010000-0x0000000082bdffff] arm64_memblock_init+0x1e8/0x258
+	[    0.000000] memblock_reserve: [0x0000000018000000-0x00000000180fffff] early_init_fdt_scan_reserved_mem+0x70/0x3c0
+	[    0.000000] memblock_reserve: [0x00000001ce7ed000-0x00000001ce7fcfff] early_init_fdt_scan_reserved_mem+0x70/0x3c0
+	[    0.000000] memblock_reserve: [0x00000000b2000000-0x00000000e7ffffff] early_init_fdt_scan_reserved_mem+0x2b8/0x3c0
+	[    0.000000] memblock_reserve: [0x00000000e8000000-0x00000000e87fffff] early_init_fdt_scan_reserved_mem+0x2b8/0x3c0
+	[    0.000000] memblock_reserve: [0x00000000e8800000-0x00000000e8ffffff] early_init_fdt_scan_reserved_mem+0x2b8/0x3c0
+	[    0.000000] Reserved memory: created DMA memory pool at 0x000000008b000000, size 32 MiB
+	[    0.000000] OF: reserved mem: initialized node bst_atf@8b000000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created DMA memory pool at 0x000000008fec0000, size 0 MiB
+	[    0.000000] OF: reserved mem: initialized node bst_tee@8fec0000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created DMA memory pool at 0x000000008ff00000, size 1 MiB
+	[    0.000000] OF: reserved mem: initialized node bstn_cma@8ff00000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created DMA memory pool at 0x000000009a000000, size 32 MiB
+	[    0.000000] OF: reserved mem: initialized node bst_cv_cma@9a000000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created DMA memory pool at 0x000000009c000000, size 16 MiB
+	[    0.000000] OF: reserved mem: initialized node vsp@0x9c000000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created DMA memory pool at 0x00000000a1000000, size 16 MiB
+	[    0.000000] OF: reserved mem: initialized node bst_isp@0xa1000000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created CMA memory pool at 0x00000000b2000000, size 864 MiB
+	[    0.000000] OF: reserved mem: initialized node coreip_pub_cma@0xb2000000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created CMA memory pool at 0x00000000e8000000, size 8 MiB
+	[    0.000000] OF: reserved mem: initialized node noc_pmu@0xe8000000, compatible id shared-dma-pool
+	[    0.000000] Reserved memory: created CMA memory pool at 0x00000000e8800000, size 8 MiB
+	[    0.000000] OF: reserved mem: initialized node canfd@0xe8800000, compatible id shared-dma-pool
+	[    0.000000] memblock_phys_alloc_range: 4096 bytes align=0x1000 from=0x0000000000000000 max_addr=0x0000000000000001 early_pgtable_alloc+0x24/0xa8
+	[    0.000000] memblock_reserve: [0x00000001effff000-0x00000001efffffff] memblock_alloc_range_nid+0xd8/0x16c
+	[    0.000000] memblock_phys_alloc_range: 4096 bytes align=0x1000 from=0x0000000000000000 max_addr=0x0000000000000001 early_pgtable_alloc+0x24/0xa8
+	[    0.000000] memblock_reserve: [0x00000001efffe000-0x00000001efffefff] memblock_alloc_range_nid+0xd8/0x16c
+	[    0.000000] memblock_phys_alloc_range: 4096 bytes align=0x1000 from=0x0000000000000000 max_addr=0x0000000000000001 early_pgtable_alloc+0x24/0xa
+	
+	[    0.000000] Initmem setup node 0 [mem 0x0000000018000000-0x00000001efffffff]
+	[    0.000000] On node 0, zone DMA: 32512 pages in unavailable ranges
+	[    0.000000] cma: Reserved 128 MiB at 0x0000000083000000
+	[    0.000000] MEMBLOCK configuration:
+	[    0.000000]  memory size = 0x00000000c8100000 reserved size = 0x0000000044670ba8
+	[    0.000000]  memory.cnt  = 0x9
+	[    0.000000]  memory[0x0]     [0x0000000018000000-0x00000000180fffff], 0x0000000000100000 bytes flags: 0x0
+	[    0.000000]  memory[0x1]     [0x0000000080000000-0x000000008affffff], 0x000000000b000000 bytes flags: 0x0
+	[    0.000000]  memory[0x2]     [0x000000008b000000-0x000000008cffffff], 0x0000000002000000 bytes flags: 0x4
+	[    0.000000]  memory[0x3]     [0x000000008d000000-0x000000008fcfffff], 0x0000000002d00000 bytes flags: 0x0
+	[    0.000000]  memory[0x4]     [0x000000008fd00000-0x000000008fdfffff], 0x0000000000100000 bytes flags: 0x4
+	[    0.000000]  memory[0x5]     [0x000000008fe00000-0x000000008febffff], 0x00000000000c0000 bytes flags: 0x0
+	[    0.000000]  memory[0x6]     [0x000000008fec0000-0x00000000b1ffffff], 0x0000000022140000 bytes flags: 0x4
+	[    0.000000]  memory[0x7]     [0x00000000b2000000-0x00000000efffffff], 0x000000003e000000 bytes flags: 0x0
+	[    0.000000]  memory[0x8]     [0x0000000198000000-0x00000001efffffff], 0x0000000058000000 bytes flags: 0x0
+	[    0.000000]  reserved.cnt  = 0xb
+	[    0.000000]  reserved[0x0]   [0x0000000018000000-0x00000000180fffff], 0x0000000000100000 bytes flags: 0x0
+	[    0.000000]  reserved[0x1]   [0x0000000081010000-0x0000000082bdafff], 0x0000000001bcb000 bytes flags: 0x0
+	[    0.000000]  reserved[0x2]   [0x0000000082bde000-0x0000000082bdffff], 0x0000000000002000 bytes flags: 0x0
+	[    0.000000]  reserved[0x3]   [0x0000000083000000-0x000000008affffff], 0x0000000008000000 bytes flags: 0x0
+	[    0.000000]  reserved[0x4]   [0x00000000b2000000-0x00000000e8ffffff], 0x0000000037000000 bytes flags: 0x0
+	[    0.000000]  reserved[0x5]   [0x00000001ce7ed000-0x00000001ce7fcfff], 0x0000000000010000 bytes flags: 0x0
+	[    0.000000]  reserved[0x6]   [0x00000001ec600000-0x00000001ef9fffff], 0x0000000003400000 bytes flags: 0x0
+	[    0.000000]  reserved[0x7]   [0x00000001efa6c000-0x00000001efa6cfff], 0x0000000000001000 bytes flags: 0x0
+	[    0.000000]  reserved[0x8]   [0x00000001efa6d400-0x00000001efa6d80f], 0x0000000000000410 bytes flags: 0x0
+	[    0.000000]  reserved[0x9]   [0x00000001efa6d840-0x00000001efa7e83f], 0x0000000000011000 bytes flags: 0x0
+	[    0.000000]  reserved[0xa]   [0x00000001efa7e868-0x00000001efffffff], 0x0000000000581798 bytes flags: 0x0
+	[    0.000000] psci: probing for conduit method from DT.
+
+
+到此为止，memblock 初始化完成，后续应用可以使用memblock 申请物理内存 
 
 
 
 
-页表
------
 
 实验
 -----
