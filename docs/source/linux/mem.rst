@@ -344,7 +344,6 @@ adrp 指令: ADRP  Xd, label; 利用当前PC 和label的相对地址，计算lab
 内核启动的内存初始化
 --------------------
 
-
 内核镜像
 ^^^^^^^^^^
 
@@ -600,8 +599,8 @@ FDT其实一共占了4M的内存，实际上FDT的大小不能超过2M，这样�
 	
 	__primary_switched
 	   - early_fdt_map(fdt_phys) 
-	     - early_fixmap_init()  // 页表准备
-		 - fixmap_remap_fdt(dt_phys, &fdt_size, PAGE_KERNEL) // 页表填充
+	     - early_fixmap_init()  // 初始化 init_pg_dir -> bm_pud -> bm_pmd->bm_pte 的页表
+		 - fixmap_remap_fdt(dt_phys, &fdt_size, PAGE_KERNEL) // 页表填充 FDT，是段映射，只填充到 bm_pmd这一层 
 
 
 这里我们在复习和学习一下 页表建立和内存映射: 
@@ -619,12 +618,9 @@ FDT其实一共占了4M的内存，实际上FDT的大小不能超过2M，这样�
 那么FDT的页表物理内存 是如何得到的， 页表初始化代码位置在early_fdt_map  
 
  - PGD: 会存在 init_mm.pgd 指针 
- - PMD PUD PTE 放在三个静态数组中,bm_pud,bm_pmd,bm_pte 这里回顾一下 之前FDT的对齐，因为PTE只有一页，因此FDT必须要正好映射到2M的PMD内
+ - PMD PUD PTE 放在三个静态数组中,bm_pud,bm_pmd,bm_pte 这里回顾一下之前FDT的对齐，因为FDT是2M对齐并且占用物理内存也是2M，因此是通过段映射的方式 映射的 
  - 利用  __pxd_populate 填充 pgd entry -> pmd,   pmd entry -> pte 
  
-注意: init_mm的初始化，会经过两次初始化，根据架构是否在 asm/mmu.h 定义了INIT_MM_CONTEXT ,决定init.mm的第二次初始化
-arm64场景下，会重新初始化 init_mm.pgd = init_pgd_dir， 这里和网上认为的 swapper_pgd_dir 有出入
-
 
 设备树认证完以后，fdt此时就可以正常访问了,arm其实对设备树进行了两次映射 
 
@@ -647,7 +643,7 @@ arm64场景下，会重新初始化 init_mm.pgd = init_pgd_dir， 这里和网�
 
 经过调查 两次映射 是由于 kasan的某个问题:  commit id  1191b6256e50a07e7d8ce36eb970708e42a4be1a
 
-fdt的第一次访问: 在完成fdt的内存映射以及校验和检查， 可以在 setup_machine_fdt 中尝试打印fdt 的 model 
+fdt的第一次访问: 在完成fdt的内存映射以及校验和检查， 可以在 setup_machine_fdt 中打印fdt 的 model 
 
 .. code-block:: c
     :linenos:
@@ -655,7 +651,43 @@ fdt的第一次访问: 在完成fdt的内存映射以及校验和检查， 可�
 	[    0.000000] Machine model: BST A1000B FAD-B //黑芝麻
 	[    0.000000] Machine model: Machine model: linux,dummy-virt // qemu 
 
+注意: 这里纠正一下，后面发现，其实FDT再映射的时候，是按照section mapping 映射的，并不会
+使用到PTE页表，bm_pte 是为后面的其他虚拟内存映射准备的
 
+.. code-block:: c
+    :linenos:
+	
+	//再 alloc_init_pud(pmd) 都会看到下面类似的代码 
+	//会根据映射的物理地址和大小，判断是否能够 huge map
+	//如果可以 就不会进入下一级映射
+	
+     /*                                                               
+      * For 4K granule only, attempt to put down a 1GB block          
+     */                                                              
+      if (pud_sect_supported() &&                                      
+         ((addr | next | phys) & ~PUD_MASK) == 0 &&                    
+          (flags & NO_BLOCK_MAPPINGS) == 0) {                          
+              pud_set_huge(pudp, phys, prot);                          
+                                                                       
+              /*                                                       
+               * After the PUD entry has been populated once, we       
+               * only allow updates to the permission attributes.      
+               */                                                      
+              BUG_ON(!pgattr_change_is_safe(pud_val(old_pud),          
+                                            READ_ONCE(pud_val(*pudp))));
+      } else {                                                         
+              alloc_init_cont_pmd(pudp, addr, next, phys, prot,        
+                                  pgtable_alloc, flags);               
+                                                                       
+              BUG_ON(pud_val(old_pud) != 0 &&                          
+                     pud_val(old_pud) != READ_ONCE(pud_val(*pudp)));   
+      }        
+
+因为DTB再物理内存上 是要求2MB对齐的，所以只映射到了PMD这一级
+
+总结: 
+ - setup_machine_fdt： 完成FDT的映射，以及扫描FDT设备树节点(内存、串口等信息) 
+ - 关于内存: 会把FDT物理内存放在 memblock的保留区，会扫描设备树的可用内存信息 以及 reserver 内存信息
 
 memblock管理器
 ^^^^^^^^^^^^^^
@@ -693,18 +725,19 @@ memblock的初始化 会默认是给一个控的静态数据结构(memblock.c)
 现在已经具有了 memblock 和 fdt，物理内存的初始化 始于 fdt扫描可用内存 : 
 
 .. image:: ./images/mem/33.png
- :width: 800p
+ :width: 800px
  
 以及 arm64_memblock_init
 
 .. image:: ./images/mem/34.png
- :width: 800p
- 
- 
-setup_machine_fdt 会扫描 memory节点，并把内存插入到 memory中，可以通过给内核传入 memblock=debug开关打开相关日志 
+ :width: 800px
 
- .. code-block:: console
-    :linenos:
+
+setup_machine_fdt 会扫描 memory节点，并把内存插入到 memory中，可以通过给内核传入 
+memblock=debug开关打开相关日志 
+
+.. code-block:: console
+	:linenos:
 	
 	[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x411fd050]
 	[    0.000000] Linux version 6.1.54-rt15-00057-g9af25a0cf1e8-dirty (guoweikang@ubuntu-virtual-machine) (aarch64-none-linux-gnu-gcc (Arm GNU Toolchain 12.3.Rel1 (Build arm-12.35)) 12.3.1 23
@@ -712,7 +745,7 @@ setup_machine_fdt 会扫描 memory节点，并把内存插入到 memory中，可
 	[    0.000000] earlycon: uart8250 at MMIO32 0x0000000020008000 (options '')
 	[    0.000000] printk: bootconsole [uart8250] enabled
 	[    0.000000] memblock_remove: [0x0001000000000000-0x0000fffffffffffe] arm64_memblock_init+0x30/0x258
-	[    0.000000] memblock_remove: [0x0000004000000000-0x0000003ffffffffe] arm64_memblock_init+0x94/0x258
+	[    0.000000] memblock_remove: [0x00000040 0000 0000-0x0000003ffffffffe] arm64_memblock_init+0x94/0x258
 	[    0.000000] memblock_reserve: [0x0000000081010000-0x0000000082bdffff] arm64_memblock_init+0x1e8/0x258
 	[    0.000000] memblock_reserve: [0x0000000018000000-0x00000000180fffff] early_init_fdt_scan_reserved_mem+0x70/0x3c0
 	[    0.000000] memblock_reserve: [0x00000001ce7ed000-0x00000001ce7fcfff] early_init_fdt_scan_reserved_mem+0x70/0x3c0
@@ -743,9 +776,6 @@ setup_machine_fdt 会扫描 memory节点，并把内存插入到 memory中，可
 	[    0.000000] memblock_reserve: [0x00000001efffe000-0x00000001efffefff] memblock_alloc_range_nid+0xd8/0x16c
 	[    0.000000] memblock_phys_alloc_range: 4096 bytes align=0x1000 from=0x0000000000000000 max_addr=0x0000000000000001 early_pgtable_alloc+0x24/0xa
 	
-	[    0.000000] Initmem setup node 0 [mem 0x0000000018000000-0x00000001efffffff]
-	[    0.000000] On node 0, zone DMA: 32512 pages in unavailable ranges
-	[    0.000000] cma: Reserved 128 MiB at 0x0000000083000000
 	[    0.000000] MEMBLOCK configuration:
 	[    0.000000]  memory size = 0x00000000c8100000 reserved size = 0x0000000044670ba8
 	[    0.000000]  memory.cnt  = 0x9
@@ -773,10 +803,303 @@ setup_machine_fdt 会扫描 memory节点，并把内存插入到 memory中，可
 	[    0.000000] psci: probing for conduit method from DT.
 
 
-到此为止，memblock 初始化完成，后续应用可以使用memblock 申请物理内存 
+可以看到内核会连续扫面fdt，把在设备树配置的可用内存和保留内存分别加入到memblock中
+
+这里还需要注意，从日志可以看到 arm64_memblock_init 会remove掉一些内存，这些内存一旦被remove
+则表示内核不可见，我们接下来对这几个remove 的操作尝试分析一下: 
+
+.. code-block:: console
+	:linenos:
+	
+	/* Remove memory above our supported physical address size */
+	// 这个比较好理解，是把大于CONFIG_PA_BITS(芯片无法访问的内存) 移除掉	
+	memblock_remove(1ULL << PHYS_MASK_SHIFT, ULLONG_MAX);  
+	
+    /*                                                                       
+     * Select a suitable value for the base of physical memory.
+	 * 这段代码需要知道一个前提，那就是物理内存一开始会以线性映射的方式
+	 * 映射到虚拟内存, 所以对于物理内存无法线性映射的内存进行了移除，稍后
+	 * 等我们讲完 线性映射之后再回头看这段代码
+    */                                          
+	  //真实物理地址需要向下取整
+      memstart_addr = round_down(memblock_start_of_DRAM(),                     
+                                 ARM64_MEMSTART_ALIGN);                        
+	 //如果物理地址范围大于线性映射大小 告警																		
+      if ((memblock_end_of_DRAM() - memstart_addr) > linear_region_size)       
+              pr_warn("Memory doesn't fit in the linear mapping, VA_BITS too small\n");
+                                                                               
+      /*                                                                       
+       * Remove the memory that we will not be able to cover with the          
+       * linear mapping. Take care not to clip the kernel which may be         
+       * high in memory.                                                       
+       */   
+	  //把超出线性映射地址范围的物理内存移除
+      memblock_remove(max_t(u64, memstart_addr + linear_region_size,           
+                      __pa_symbol(_end)), ULLONG_MAX);   
+      if (memstart_addr + linear_region_size < memblock_end_of_DRAM()) {       
+              /* ensure that memstart_addr remains sufficiently aligned */     
+              memstart_addr = round_up(memblock_end_of_DRAM() - linear_region_size,
+                                       ARM64_MEMSTART_ALIGN);                  
+              memblock_remove(0, memstart_addr);                               
+      }
+
+
+物理内存访问建立
+^^^^^^^^^^^^^^^^^^^^^^
+上一小节 我们知道了memblock 暂时管理当前物理内存，当然也支持从memblock中分配物理内存
+但是，分配出来物理内存，我们能够直接访问吗？当然不行，必须要建立完 物理内存和虚拟内存的映射
+才可以访问，这样也就来到了本节内容： paging_init ,这段代码有必要了解一下 
+
+
+.. code-block:: console
+	:linenos:
+	
+	void __init paging_init(void)
+	{
+        pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir)); // 1 
+        extern pgd_t init_idmap_pg_dir[];
+
+        idmap_t0sz = 63UL - __fls(__pa_symbol(_end) | GENMASK(VA_BITS_MIN - 1, 0));
+
+        map_kernel(pgdp); //2
+        map_mem(pgdp); //3 
+
+        pgd_clear_fixmap();
+                
+        cpu_replace_ttbr1(lm_alias(swapper_pg_dir), init_idmap_pg_dir); //
+        init_mm.pgd = swapper_pg_dir;
+        
+        memblock_phys_free(__pa_symbol(init_pg_dir),
+                           __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
+
+        memblock_allow_resize();
+                              
+        create_idmap();       
+	}  
 
 
 
+下图基本解释了上述代码的执行过程
+
+.. image:: ./images/mem/35.png
+ :width: 800px
+ 
+
+考虑到BST环境 大概是这样 
+
+
+.. image:: ./images/mem/40.png
+ :width: 800px
+ 
+
+无论如何，目前我们基本完成了内核的初级内存管理。下面是总结
+ 
+ - init_pg_dir不再使用  内核全局页表PGD 都存储再swapper_pg_dir 
+ - 依然保留了 idmap映射 (TTBR1的替换依赖TTBR0的访问)
+ - 系统内存目前都可以通过d虚拟内存访问 物理内存 到内核的虚拟地址，是线性映射的关系 
+ - 常用的两个地址转换函数: virt_to_phys/phys_to_virt 
+
+
+内核物理内存管理进阶
+--------------------
+之前 我们已经学习过了，内核启动阶段，通过memblock 以及线性映射，管理起来了系统的物理内存，
+memblock，对于物理内存的管理都是大颗粒的，并且实现比较简单，其实为了应对更高级别的内存管理，为了满足物理内存管理更加灵活
+我们将继续探讨，在之前，有几个关键的概念要介绍一下
+
+
+PFN
+^^^^^^
+物理页帧号，内核根据选择的页大小，按照页帧的方式 给每个物理内存作了编号
+
+举例说明: ARM32位下，CPU 可以访问的物理内存范围 0x00000000 - 0xffff ffff，如果按照4K页大小，可以得知，有效物理内存范围内，
+一共需要(0xf ffff)个页帧，编号从(0-1048575)
+
+内核提供的关于页帧的转换公式有: 
+
+
+.. code-block:: console
+	:linenos:
+	
+	// 根据当前物理地址 获取下一个页帧的起始地址
+	#define PFN_ALIGN(x)    (((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
+    //根据当前物理地址  获取下一个页帧号
+	#define PFN_UP(x)       (((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
+    //根据当前物理地址  获取上一个页帧号
+	#define PFN_DOWN(x)     ((x) >> PAGE_SHIFT)
+    //给定页帧，获取他的页帧起始物理地址
+	#define PFN_PHYS(x)     ((phys_addr_t)(x) << PAGE_SHIFT)
+    //给定物理地址，获取他的页帧号
+	#define PHYS_PFN(x)     ((unsigned long)((x) >> PAGE_SHIFT))    
+
+
+下图展示了上述过程：
+
+.. image:: ./images/mem/36.png
+ :width: 800px
+
+
+struct page
+^^^^^^^^^^^^
+物理内存都有了PFN，则struct page 则是对应每个PFN 有一个结构体，用以记录该物理内存的: 状态(是否被使用、是否被锁) 以及其他信息
+
+这里只是先简单引入struct page的概念
+
+linux的物理内存模型
+^^^^^^^^^^^^^^^^^^^^^^
+有了PFN 和 struct page 的概念，是时候来讨论物理内存模型了，为了管理物理内存，内核在不同时期引入了几种模型，到今天为止，应该只剩下两个模型在使用
+
+第一种： 早期和嵌入式环境下的平坦内存模型
+
+.. image:: ./images/mem/37.png
+ :width: 800px
+
+从 PFN 到 对应struct page 的转换就非常简单: 
+
+.. code-block:: console
+	:linenos:
+	
+	#define __pfn_to_page(pfn)      (mem_map + ((pfn) - ARCH_PFN_OFFSET))
+	#define __page_to_pfn(page)     ((unsigned long)((page) - mem_map) +  ARCH_PFN_OFFSET)
+
+mem_map数组的index 和PFN是对应的 
+
+上面这种存在很明显的问题: 
+ 
+ - 虽然RAM 一定不会 把物理内存都占用，但是mem_map数组依然要占用空间，这在64位下是无法忍受的
+ - 另外由于NUMA的架构出现，对平坦内存模型也提出了挑战 
+
+第二种： 当前主流内存模型 稀疏内存模型
+
+在继续稀疏内存模型之前，先介绍一下 NUMA 和 UMP的内存访问模型
+
+.. image:: ./images/mem/38.png
+ :width: 800px
+
+NUMA对不同numa 节点，提出了内存单独管理的诉求，在加上 内存热插拔的出现，平坦模型已经无法在胜任了 
+
+
+注意root是第一级分配的空间，第二级根据实际物理内存按需分配
+
+从 PFN 到 对应struct page 的转换就稍微复杂: 
+
+.. code-block:: console
+	:linenos:
+	
+	/*
+	* Note: section's mem_map is encoded to reflect its start_pfn.
+	* section[i].section_mem_map == mem_map's address - start_pfn;
+	*/
+	#define __page_to_pfn(pg)                                       \
+	({      const struct page *__pg = (pg);                         \
+			int __sec = page_to_section(__pg);                      \
+			(unsigned long)(__pg - __section_mem_map_addr(__nr_to_section(__sec))); \
+	})
+	
+	#define __pfn_to_page(pfn)                              \
+	({      unsigned long __pfn = (pfn);                    \
+			struct mem_section *__sec = __pfn_to_section(__pfn);    \
+			__section_mem_map_addr(__sec) + __pfn;          \
+	})
+
+详细追踪一下:  pfn_to_page： 假设 物理地址为: 0x00000000ffff ffff,  per_root section =2  4k页表
+
+-  已知pfn在4K页表下，是物理地址右移12bit的结果 则该地址的PFN =0xf ffff  
+-  每个section在4K页表下， 包含 128M空间，也就是包含 32768(2^15)  个page   
+-  pfn_to_section_nr：从pfn 到  section index的 转换就是 pfn >> 2^15（除以32768）：0x7f
+- __nr_to_section:  section index 得到  root_index = section_index / per_root_section = 0x3f
+   section_ptr = mem_section[ root_index  ][section_index & SECTION_ROOT_MASK ]  
+                       = mem_section[ 3f ][ 1 ] 
+- 得到page = section_ptr-> sectiom_mem_map [pfn & MAP_MASK] 但是我们会发现 实际并不是这样 
+
+上面最后一个步骤，我们看到在计算page_ptr 的时候，是直接使用 sectiom_mem_map+pfn,其实注释也说明了，
+在sectiom_mem_map初始化的时候，为了减少计算，sectiom_mem_map 实际在分配初始化的时候，做了偏移，
+这样做的的原因是因为 sectiom_mem_map初始化是一次性的，从性能角度考虑，这样作是有好处的 
+
+
+但是实际上，为了更好的
+
+
+
+稀疏内存结构模型初始化路径为; 
+
+.. code-block:: console
+	:linenos:
+	
+	- start_kerenl 
+	 - setup_arch
+      - bootmem_init 
+	   - sparse_init
+        - memblocks_present() 利用memblock信息, 初始化 mem_section 数组，先把需要用到的section内存分配出来
+		- sparse_init_nid 循环遍历所有numa节点，申请和初始化 section内部结构，比如 section_mem_map 的申请 
+		 - __populate_section_memmap 建立 section_mem_map 到 vmemmap的内存映射
+		
+这部分内容，后面我们还要再讲，因为当前稀疏内存的pfn和page的互相索引效率实在是太慢，内核后续会对这部分继续优化 
+
+参考：
+https://www.kernel.org/doc/gorman/html/understand/understand005.html
+
+
+
+物理的内存分区:ZONE
+^^^^^^^^^^^^^^^^^^^^
+理想情况下，内存中的所有页面从功能上讲都是等价的，都可以用于任何目的，但现实却并非如此，例如一些DMA处理器只能访问固定范围内的地址空间
+（https://en.wikipedia.org/wiki/Direct_memory_access）。
+因此内核将整个内存地址空间划分成了不同的区，每个区叫着一个 Zone, 每个 Zone 都有自己的用途。
+
+理解DMA的概念
+
+
+struct pglist_data 记录了每个 NUMA节点的内存布局，需要专门看一下这个结构体 
+
+
+内存分区和布局初始化路径为: 
+
+.. code-block:: console
+	:linenos:
+	
+	- start_kerenl 
+	 - setup_arch
+      - bootmem_init 
+	   - zone_sizes_init
+	   // 使用 memblock 节点映射，架构可以初始化其区域、分配支持 mem_map 并以架构独立的方式解决内存空洞。
+	   // 在调用 free_area_init() 并传入每个区域结束处的 PFN 之前，体系结构应使用 memblock_add[_node]() 注册物理内存支持的页帧范围。 
+	   // free_area_init: 初始化numa节点的内存布局结构 pg_data_t 以及 zone data
+	    - free_area_init
+		  //初始化单个numa节点的 pg_data_t和 zone data
+		  - free_area_init_node
+			 - calculate_node_totalpages // 计算需要的page信息，计算zone的实际大小 排除掉空洞 
+			 - alloc_node_mem_map //仅仅在flatmem 内存模型下 分配 
+			 - free_area_init_core // 标记所有reserved 页帧 设置当前内存队列为空 清空所有内存标志位
+	  - memmap_init
+        -  memmap_init_zone_range
+			   - memmap_init_range //初始化 物理页帧
+			 
+zone的初始化日志 
+
+.. code-block:: console
+	:linenos:
+	
+	
+	[    0.000000] Zone ranges:
+	[    0.000000]   DMA      [mem 0x00000000 1800 0000-  0x0000 0000  ffff ffff]
+	[    0.000000]   DMA32    empty
+	[    0.000000]   Normal   [mem 0x00000001 0000 0000 - 0x0000 0001  efff ffff]
+	[    0.000000] Movable zone start for each node
+	[    0.000000] Early memory node ranges
+	[    0.000000]   node   0: [mem 0x0000000018000000-0x00000000180fffff]
+	[    0.000000]   node   0: [mem 0x0000000080000000-0x000000008affffff]
+	[    0.000000]   node   0: [mem 0x000000008b000000-0x000000008cffffff]
+	[    0.000000]   node   0: [mem 0x000000008d000000-0x000000008fcfffff]
+	[    0.000000]   node   0: [mem 0x000000008fd00000-0x000000008fdfffff]
+	[    0.000000]   node   0: [mem 0x000000008fe00000-0x000000008febffff]
+	[    0.000000]   node   0: [mem 0x000000008fec0000-0x00000000b1ffffff]
+	[    0.000000]   node   0: [mem 0x00000000b2000000-0x00000000efffffff]
+	[    0.000000]   node   0: [mem 0x0000000198000000-0x00000001efffffff]
+	[    0.000000] mminit::memmap_init Initialising map node 0 zone 0 pfns 98304 -> 1048576
+	[    0.000000] mminit::memmap_init Initialising map node 0 zone 2 pfns 1048576 -> 2031616
+	[    0.000000] mminit::zonelist general 0:DMA = 0:DMA 
+	[    0.000000] mminit::zonelist general 0:Normal = 0:Normal 0:DMA 
+	[    0.000000] Initmem setup node 0 [mem 0x0000000018000000-0x00000001 efff ffff]
 
 
 实验

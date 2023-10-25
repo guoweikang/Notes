@@ -191,15 +191,70 @@ qemu启动
 
 内核参数
 =========
+
+
 可以通过设置内核参数，调整内核行为，常用的参数比如: 
 
  - loglevel: 0-7 设置日志等级
  - log_buf_len: 动态调整日志存储大小
  
+内核支持的参数文档说明位于:https://www.kernel.org/doc/html/v4.14/admin-guide/kernel-parameters.html
+
+也可以在系统启动之后 通过 /proc/cmdline 查看
+
 
 
 内存
 ====
+
+memblock
+----------
+memblock 是linux 内核对于物理内存管理的初级阶段，在这一阶段 主要有两种debug 工具 
+
+dts内存扫描
+^^^^^^^^^^^^^^^
+由于memblock的物理内存信息主要来源于 设备树文件，为了验证设备树文件内存配置是否正确，可以通过:  
+
+ - 增加内核参数: `memblock=debug,debug` 选项，开启memblock 信息打印 
+
+内存坏块检测
+^^^^^^^^^^^^^^^
+适用于比如内存莫名发生变化 或者怀疑内存硬件出现问题，可以通过开启memtest: 
+ 
+ - 需要开启CONFIG_MEMTEST
+ - 需要指定内核参数:`memtest=n[10,100]` 该参数表示执行检测轮数 
+
+原理是 memblock 内存管理建立好以后，会扫描所有内存，并且对内存进行 多次的读写，验证内存有效性；
+如果发现内存坏块，会标记内存为reserved 不可用
+
+.. code-block:: console
+	:linenos:
+	
+	[    0.000000] early_memtest: # of tests: 1
+	[    0.000000]   0x0000000040000000 - 0x0000000040210000 pattern 0000000000000000
+	[    0.000000]   0x00000000426fb000 - 0x0000000048000000 pattern 0000000000000000
+	[    0.000000]   0x0000000048116000 - 0x0000000048200000 pattern 0000000000000000
+	[    0.000000]   0x0000000048300000 - 0x000000005fef3950 pattern 0000000000000000
+	[    0.000000]   0x000000005fefcffc - 0x000000005fefd000 pattern 0000000000000000
+
+内存初始化定位
+^^^^^^^^^^^^^^^
+开启 CONFIG_DEBUG_MEMORY_INIT 内核参数设置:  mminit_loglevel=3 
+
+.. code-block:: console
+	:linenos:
+	
+	[    0.000000] mminit::pageflags_layout_widths Section 0 Node 0 Zone 2 Lastcpupid 0 Kasantag 0 Gen 0 Tier 0 Flags 25
+	[    0.000000] mminit::pageflags_layout_shifts Section 21 Node 0 Zone 2 Lastcpupid 0 Kasantag 0
+	[    0.000000] mminit::pageflags_layout_pgshifts Section 0 Node 0 Zone 62 Lastcpupid 0 Kasantag 0
+	[    0.000000] mminit::pageflags_layout_nodezoneid Node/Zone ID: 64 -> 62
+	[    0.000000] mminit::pageflags_layout_usage location: 64 -> 62 layout 62 -> 25 unused 25 -> 0 page-flags
+	[    0.000000] mminit::memmap_init Initialising map node 0 zone 0 pfns 98304 -> 1048576
+	[    0.000000] mminit::memmap_init Initialising map node 0 zone 2 pfns 1048576 -> 2031616
+	[    0.000000] mminit::zonelist general 0:DMA = 0:DMA 
+	[    0.000000] mminit::zonelist general 0:Normal = 0:Normal 0:DMA 
+	[    0.000000] Initmem setup node 0 [mem 0x0000000018000000-0x00000001 efff ffff]
+
 
 valgrind
 ----------
