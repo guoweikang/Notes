@@ -356,8 +356,8 @@ arch/arm64/kernel/vmlinux.lds.S, SECTIONS 描述了段的定义
  :width: 800px
  
  
- 一阶段:镜像1:l映射
-^^^^^^^^^^^^^^^^^^^^^^
+一阶段:镜像1:l映射
+^^^^^^^^^^^^^^^^^^^^^
 
 当uboot 加载完成内核，并且跳转到内核起始位置的时候，此时MMU处于未打开的状态，因此此时CPU在执行内核代码是直接访问的物理内存;
 这段代码执行期间，严格意义上来说不能够访问类似于全局变量、函数等会涉及到 虚拟内存地址的代码
@@ -683,7 +683,7 @@ fdt的第一次访问: 在完成fdt的内存映射以及校验和检查， 可�
                      pud_val(old_pud) != READ_ONCE(pud_val(*pudp)));   
       }        
 
-因为DTB再物理内存上 是要求2MB对齐的，所以只映射到了PMD这一级
+因为DTB再VA上 是要求2MB对齐的，所以只映射到了PMD这一级
 
 总结: 
  - setup_machine_fdt： 完成FDT的映射，以及扫描FDT设备树节点(内存、串口等信息) 
@@ -779,7 +779,7 @@ memblock=debug开关打开相关日志
 	[    0.000000] MEMBLOCK configuration:
 	[    0.000000]  memory size = 0x00000000c8100000 reserved size = 0x0000000044670ba8
 	[    0.000000]  memory.cnt  = 0x9
-	[    0.000000]  memory[0x0]     [0x0000000018000000-0x00000000180fffff], 0x0000000000100000 bytes flags: 0x0
+	[    0.000000]  memory[0x0]     [0x0000000018000000-0x00000000180fffff], 0x0000000000100000 bytes flags: 0x0  
 	[    0.000000]  memory[0x1]     [0x0000000080000000-0x000000008affffff], 0x000000000b000000 bytes flags: 0x0
 	[    0.000000]  memory[0x2]     [0x000000008b000000-0x000000008cffffff], 0x0000000002000000 bytes flags: 0x4
 	[    0.000000]  memory[0x3]     [0x000000008d000000-0x000000008fcfffff], 0x0000000002d00000 bytes flags: 0x0
@@ -789,17 +789,17 @@ memblock=debug开关打开相关日志
 	[    0.000000]  memory[0x7]     [0x00000000b2000000-0x00000000efffffff], 0x000000003e000000 bytes flags: 0x0
 	[    0.000000]  memory[0x8]     [0x0000000198000000-0x00000001efffffff], 0x0000000058000000 bytes flags: 0x0
 	[    0.000000]  reserved.cnt  = 0xb
-	[    0.000000]  reserved[0x0]   [0x0000000018000000-0x00000000180fffff], 0x0000000000100000 bytes flags: 0x0
-	[    0.000000]  reserved[0x1]   [0x0000000081010000-0x0000000082bdafff], 0x0000000001bcb000 bytes flags: 0x0
+	[    0.000000]  reserved[0x0]   [0x0000000018000000-0x00000000180fffff], 0x0000000000100000 bytes flags: 0x0 fdt
+	[    0.000000]  reserved[0x1]   [0x0000000081010000-0x0000000082bdafff], 0x0000000001bcb000 bytes flags: 0x0 kernel 
 	[    0.000000]  reserved[0x2]   [0x0000000082bde000-0x0000000082bdffff], 0x0000000000002000 bytes flags: 0x0
-	[    0.000000]  reserved[0x3]   [0x0000000083000000-0x000000008affffff], 0x0000000008000000 bytes flags: 0x0
-	[    0.000000]  reserved[0x4]   [0x00000000b2000000-0x00000000e8ffffff], 0x0000000037000000 bytes flags: 0x0
-	[    0.000000]  reserved[0x5]   [0x00000001ce7ed000-0x00000001ce7fcfff], 0x0000000000010000 bytes flags: 0x0
-	[    0.000000]  reserved[0x6]   [0x00000001ec600000-0x00000001ef9fffff], 0x0000000003400000 bytes flags: 0x0
-	[    0.000000]  reserved[0x7]   [0x00000001efa6c000-0x00000001efa6cfff], 0x0000000000001000 bytes flags: 0x0
-	[    0.000000]  reserved[0x8]   [0x00000001efa6d400-0x00000001efa6d80f], 0x0000000000000410 bytes flags: 0x0
-	[    0.000000]  reserved[0x9]   [0x00000001efa6d840-0x00000001efa7e83f], 0x0000000000011000 bytes flags: 0x0
-	[    0.000000]  reserved[0xa]   [0x00000001efa7e868-0x00000001efffffff], 0x0000000000581798 bytes flags: 0x0
+	[    0.000000]  reserved[0x3]   [0x0000000083000000-0x000000008affffff], 0x0000000008000000 bytes flags: 0x0 CMA 128M 
+	[    0.000000]  reserved[0x4]   [0x00000000b2000000-0x00000000e8ffffff], 0x0000000037000000 bytes flags: 0x0 CMA 880M  
+	[    0.000000]  reserved[0x5]   [0x00000001ce7ed000-0x00000001ce7fcfff], 0x0000000000010000 bytes flags: 0x0 fdt
+	[    0.000000]  reserved[0x6]   [0x00000001ec600000-0x00000001ef9fffff], 0x0000000003400000 bytes flags: 0x0 //页表
+	[    0.000000]  reserved[0x7]   [0x00000001efa6c000-0x00000001efa6cfff], 0x0000000000001000 bytes flags: 0x0 //页表
+	[    0.000000]  reserved[0x8]   [0x00000001efa6d400-0x00000001efa6d80f], 0x0000000000000410 bytes flags: 0x0 //页表
+	[    0.000000]  reserved[0x9]   [0x00000001efa6d840-0x00000001efa7e83f], 0x0000000000011000 bytes flags: 0x0 //page 
+	[    0.000000]  reserved[0xa]   [0x00000001efa7e868-0x00000001efffffff], 0x0000000000581798 bytes flags: 0x0 //page 
 	[    0.000000] psci: probing for conduit method from DT.
 
 
@@ -808,40 +808,39 @@ memblock=debug开关打开相关日志
 这里还需要注意，从日志可以看到 arm64_memblock_init 会remove掉一些内存，这些内存一旦被remove
 则表示内核不可见，我们接下来对这几个remove 的操作尝试分析一下: 
 
-.. code-block:: console
-	:linenos:
+
+.. code-block:: c
 	
 	/* Remove memory above our supported physical address size */
-	// 这个比较好理解，是把大于CONFIG_PA_BITS(芯片无法访问的内存) 移除掉	
+	/ 这个比较好理解，是把大于CONFIG_PA_BITS(芯片无法访问的内存) 移除掉	
 	memblock_remove(1ULL << PHYS_MASK_SHIFT, ULLONG_MAX);  
-	
-    /*                                                                       
-     * Select a suitable value for the base of physical memory.
-	 * 这段代码需要知道一个前提，那就是物理内存一开始会以线性映射的方式
-	 * 映射到虚拟内存, 所以对于物理内存无法线性映射的内存进行了移除，稍后
-	 * 等我们讲完 线性映射之后再回头看这段代码
-    */                                          
-	  //真实物理地址需要向下取整
-      memstart_addr = round_down(memblock_start_of_DRAM(),                     
-                                 ARM64_MEMSTART_ALIGN);                        
-	 //如果物理地址范围大于线性映射大小 告警																		
-      if ((memblock_end_of_DRAM() - memstart_addr) > linear_region_size)       
-              pr_warn("Memory doesn't fit in the linear mapping, VA_BITS too small\n");
-                                                                               
-      /*                                                                       
-       * Remove the memory that we will not be able to cover with the          
-       * linear mapping. Take care not to clip the kernel which may be         
-       * high in memory.                                                       
-       */   
-	  //把超出线性映射地址范围的物理内存移除
-      memblock_remove(max_t(u64, memstart_addr + linear_region_size,           
-                      __pa_symbol(_end)), ULLONG_MAX);   
-      if (memstart_addr + linear_region_size < memblock_end_of_DRAM()) {       
-              /* ensure that memstart_addr remains sufficiently aligned */     
-              memstart_addr = round_up(memblock_end_of_DRAM() - linear_region_size,
-                                       ARM64_MEMSTART_ALIGN);                  
-              memblock_remove(0, memstart_addr);                               
-      }
+	*                                                                       
+	* Select a suitable value for the base of physical memory.
+	* 这段代码需要知道一个前提，那就是物理内存一开始会以线性映射的方式
+	* 映射到虚拟内存, 所以对于物理内存无法线性映射的内存进行了移除，稍后
+	* 等我们讲完 线性映射之后再回头看这段代码
+	/                                          
+	//真实物理地址需要向下取整
+	memstart_addr = round_down(memblock_start_of_DRAM(),                     
+								ARM64_MEMSTART_ALIGN);                        
+	//如果物理地址范围大于线性映射大小 告警																		
+	if ((memblock_end_of_DRAM() - memstart_addr) > linear_region_size)       
+			pr_warn("Memory doesn't fit in the linear mapping, VA_BITS too small\n");
+																			
+	/*                                                                       
+	* Remove the memory that we will not be able to cover with the          
+	* linear mapping. Take care not to clip the kernel which may be         
+	* high in memory.                                                       
+	*/   
+	//把超出线性映射地址范围的物理内存移除
+	memblock_remove(max_t(u64, memstart_addr + linear_region_size,           
+					__pa_symbol(_end)), ULLONG_MAX);   
+	if (memstart_addr + linear_region_size < memblock_end_of_DRAM()) {       
+			/* ensure that memstart_addr remains sufficiently aligned */     
+			memstart_addr = round_up(memblock_end_of_DRAM() - linear_region_size,
+									ARM64_MEMSTART_ALIGN);                  
+			memblock_remove(0, memstart_addr);                               
+	}
 
 
 物理内存访问建立
@@ -856,21 +855,21 @@ memblock=debug开关打开相关日志
 	
 	void __init paging_init(void)
 	{
-        pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir)); // 1 
+        pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir)); // 1 为了访问swapper_pg_dir，映射到 FIX_PGD 的VA地址
         extern pgd_t init_idmap_pg_dir[];
 
         idmap_t0sz = 63UL - __fls(__pa_symbol(_end) | GENMASK(VA_BITS_MIN - 1, 0));
 
-        map_kernel(pgdp); //2
-        map_mem(pgdp); //3 
+        map_kernel(pgdp); // 重新在 swapper_pg_dir 映射 内核的各个段 以及 重新映射 FDT
+        map_mem(pgdp); // 映射所有memblock管理的内存(除了被NOMAP标记的)到 内核线性地址 
 
-        pgd_clear_fixmap();
+        pgd_clear_fixmap(); // 使用完毕， 解除 FIX_PGD 到 swapper_pg_dir映射，释放 FIX_PGD资源 
                 
-        cpu_replace_ttbr1(lm_alias(swapper_pg_dir), init_idmap_pg_dir); //
-        init_mm.pgd = swapper_pg_dir;
+        cpu_replace_ttbr1(lm_alias(swapper_pg_dir), init_idmap_pg_dir); // 替换 页表基址为 swapper_pg_dir
+        init_mm.pgd = swapper_pg_dir; // 替换 数据结构的页表基址为 swapper_pg_dir
         
         memblock_phys_free(__pa_symbol(init_pg_dir),
-                           __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
+                           __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir)); // 释放 init_pg_dir 占用物理资源
 
         memblock_allow_resize();
                               
@@ -896,7 +895,7 @@ memblock=debug开关打开相关日志
  
  - init_pg_dir不再使用  内核全局页表PGD 都存储再swapper_pg_dir 
  - 依然保留了 idmap映射 (TTBR1的替换依赖TTBR0的访问)
- - 系统内存目前都可以通过d虚拟内存访问 物理内存 到内核的虚拟地址，是线性映射的关系 
+ - 系统内存目前都可以通过虚拟内存访问 物理内存 到内核的虚拟地址，是线性映射的关系 
  - 常用的两个地址转换函数: virt_to_phys/phys_to_virt 
 
 
@@ -906,9 +905,8 @@ memblock=debug开关打开相关日志
 memblock，对于物理内存的管理都是大颗粒的，并且实现比较简单，其实为了应对更高级别的内存管理，为了满足物理内存管理更加灵活
 我们将继续探讨，在之前，有几个关键的概念要介绍一下
 
-
-PFN
-^^^^^^
+概念:PFN
+^^^^^^^^^^^^
 物理页帧号，内核根据选择的页大小，按照页帧的方式 给每个物理内存作了编号
 
 举例说明: ARM32位下，CPU 可以访问的物理内存范围 0x00000000 - 0xffff ffff，如果按照4K页大小，可以得知，有效物理内存范围内，
@@ -916,8 +914,7 @@ PFN
 
 内核提供的关于页帧的转换公式有: 
 
-
-.. code-block:: console
+.. code-block:: c
 	:linenos:
 	
 	// 根据当前物理地址 获取下一个页帧的起始地址
@@ -937,23 +934,23 @@ PFN
 .. image:: ./images/mem/36.png
  :width: 800px
 
-
-struct page
+概念:页帧
 ^^^^^^^^^^^^
 物理内存都有了PFN，则struct page 则是对应每个PFN 有一个结构体，用以记录该物理内存的: 状态(是否被使用、是否被锁) 以及其他信息
 
-这里只是先简单引入struct page的概念
+这里只是先简单引入struct page的概念 
 
-linux的物理内存模型
+
+概念:物理内存模型
 ^^^^^^^^^^^^^^^^^^^^^^
-有了PFN 和 struct page 的概念，是时候来讨论物理内存模型了，为了管理物理内存，内核在不同时期引入了几种模型，到今天为止，应该只剩下两个模型在使用
+物理内存模型描决定了内存管理的复杂度，为了管理物理内存，内核在不同时期引入了几种模型，到今天为止，只剩下两个模型在使用
 
 第一种： 早期和嵌入式环境下的平坦内存模型
 
 .. image:: ./images/mem/37.png
  :width: 800px
 
-从 PFN 到 对应struct page 的转换就非常简单: 
+从 PFN 到 对应struct page 数组的转换就非常简单: 
 
 .. code-block:: console
 	:linenos:
@@ -982,7 +979,7 @@ NUMA对不同numa 节点，提出了内存单独管理的诉求，在加上 内�
 
 从 PFN 到 对应struct page 的转换就稍微复杂: 
 
-.. code-block:: console
+.. code-block:: c
 	:linenos:
 	
 	/*
@@ -1015,11 +1012,37 @@ NUMA对不同numa 节点，提出了内存单独管理的诉求，在加上 内�
 在sectiom_mem_map初始化的时候，为了减少计算，sectiom_mem_map 实际在分配初始化的时候，做了偏移，
 这样做的的原因是因为 sectiom_mem_map初始化是一次性的，从性能角度考虑，这样作是有好处的 
 
+概念: 内存分区(ZONE)
+^^^^^^^^^^^^^^^^^^^^
+理想情况下，内存中的所有页面从功能上讲都是等价的，都可以用于任何目的，但现实却并非如此，例如一些DMA处理器只能访问固定范围内的地址空间
+（https://en.wikipedia.org/wiki/Direct_memory_access）。
+因此内核将整个内存地址空间划分成了不同的区，每个区叫着一个 Zone, 每个 Zone 都有自己的用途。
 
-但是实际上，为了更好的
+理解DMA的概念: 参考一些资料即可，介绍一下DMA解决什么问题，以及为什么DMA有内存访问的约束
 
+内核关于DMA 的介绍
+https://docs.kernel.org/core-api/dma-api-howto.html
 
+vmemmap
+^^^^^^^^^
+由于在稀疏模型下 PFN 和  page的互相索引 性能还是不够好，引入了VMEMAP的概念
 
+.. image:: ./images/mem/41.png
+ :width: 800px
+
+section通过分段+按需动态申请内存的方式，解决了 如果要映射全部物理内存范围，page数组占用过大物理内存的问题  
+但是通过把page数组 重新映射到 VMEMMAP虚拟内存上，则解决了 PFN 到 page 的索引效率问题 
+
+.. code-block:: c
+	:linenos:
+	
+	/* memmap is virtually contiguous.  */
+	#define __pfn_to_page(pfn)      (vmemmap + (pfn))
+	#define __page_to_pfn(page)     (unsigned long)((page) - vmemmap)
+
+ 
+代码浅谈
+^^^^^^^^^^^^
 稀疏内存结构模型初始化路径为; 
 
 .. code-block:: console
@@ -1032,24 +1055,16 @@ NUMA对不同numa 节点，提出了内存单独管理的诉求，在加上 内�
         - memblocks_present() 利用memblock信息, 初始化 mem_section 数组，先把需要用到的section内存分配出来
 		- sparse_init_nid 循环遍历所有numa节点，申请和初始化 section内部结构，比如 section_mem_map 的申请 
 		 - __populate_section_memmap 建立 section_mem_map 到 vmemmap的内存映射
-		
-这部分内容，后面我们还要再讲，因为当前稀疏内存的pfn和page的互相索引效率实在是太慢，内核后续会对这部分继续优化 
+
+
+
+稀疏内存核心结构体: 
 
 参考：
 https://www.kernel.org/doc/gorman/html/understand/understand005.html
 
-
-
-物理的内存分区:ZONE
-^^^^^^^^^^^^^^^^^^^^
-理想情况下，内存中的所有页面从功能上讲都是等价的，都可以用于任何目的，但现实却并非如此，例如一些DMA处理器只能访问固定范围内的地址空间
-（https://en.wikipedia.org/wiki/Direct_memory_access）。
-因此内核将整个内存地址空间划分成了不同的区，每个区叫着一个 Zone, 每个 Zone 都有自己的用途。
-
-理解DMA的概念
-
-
 struct pglist_data 记录了每个 NUMA节点的内存布局，需要专门看一下这个结构体 
+
 
 
 内存分区和布局初始化路径为: 
@@ -1060,30 +1075,39 @@ struct pglist_data 记录了每个 NUMA节点的内存布局，需要专门看�
 	- start_kerenl 
 	 - setup_arch
       - bootmem_init 
-	   - zone_sizes_init
-	   // 使用 memblock 节点映射，架构可以初始化其区域、分配支持 mem_map 并以架构独立的方式解决内存空洞。
-	   // 在调用 free_area_init() 并传入每个区域结束处的 PFN 之前，体系结构应使用 memblock_add[_node]() 注册物理内存支持的页帧范围。 
-	   // free_area_init: 初始化numa节点的内存布局结构 pg_data_t 以及 zone data
-	    - free_area_init
-		  //初始化单个numa节点的 pg_data_t和 zone data
-		  - free_area_init_node
-			 - calculate_node_totalpages // 计算需要的page信息，计算zone的实际大小 排除掉空洞 
-			 - alloc_node_mem_map //仅仅在flatmem 内存模型下 分配 
+	   - zone_sizes_init // 根据系统的DMA限制范围(ACPI 设备树信息等) 得到系统的DMA 最大访问范围 
+	    - free_area_init // free_area_init: 初始化numa节点的内存布局结构 pglist_data 以及 zone data
+		   -  start_pfn = PHYS_PFN(memblock_start_of_DRAM()); // 系统真实物理地址的的起始PFN(去掉开头空洞) 
+		   -  end_pfn = max(max_zone_pfn[zone], start_pfn); // 获取每个zone的 PFN下限
+		   - free_area_init_node //初始化单个numa节点的 pg_data_t 和 zone data
+			 - calculate_node_totalpages  // 计算zone的实际大小 初始化numa 和 zone的 pfn范围 和 以及pages数量
 			 - free_area_init_core // 标记所有reserved 页帧 设置当前内存队列为空 清空所有内存标志位
+			   - pgdat_init_internals 
+			     - pgdat_init_split_queue // 初始化 pgdat 的 透明大页相关结构				 
+				 - pgdat_init_kcompactd //  初始化内存压缩列表
+			   -  pgdat->per_cpu_nodestats = &boot_nodestats; //初始化内存启动阶段的 内存使用情况统计
+			   -  memmap_pages = calc_memmap_size(size, freesize); 计算 页帧管理(PAGE)占用的内存 
+			   
 	  - memmap_init
         -  memmap_init_zone_range
 			   - memmap_init_range //初始化 物理页帧
-			 
+
+黑芝麻的 DMA range : 
+
+.. image:: ./images/mem/42.png
+ :width: 400px
+
+
+
 zone的初始化日志 
 
 .. code-block:: console
 	:linenos:
 	
-	
 	[    0.000000] Zone ranges:
-	[    0.000000]   DMA      [mem 0x00000000 1800 0000-  0x0000 0000  ffff ffff]
+	[    0.000000]   DMA      [mem 0x00000000 1800 0000 - 0x0000 0000 ffff ffff]
 	[    0.000000]   DMA32    empty
-	[    0.000000]   Normal   [mem 0x00000001 0000 0000 - 0x0000 0001  efff ffff]
+	[    0.000000]   Normal   [mem 0x00000001 0000 0000 - 0x0000 0001 efff ffff]
 	[    0.000000] Movable zone start for each node
 	[    0.000000] Early memory node ranges
 	[    0.000000]   node   0: [mem 0x0000000018000000-0x00000000180fffff]
@@ -1095,11 +1119,9 @@ zone的初始化日志
 	[    0.000000]   node   0: [mem 0x000000008fec0000-0x00000000b1ffffff]
 	[    0.000000]   node   0: [mem 0x00000000b2000000-0x00000000efffffff]
 	[    0.000000]   node   0: [mem 0x0000000198000000-0x00000001efffffff]
-	[    0.000000] mminit::memmap_init Initialising map node 0 zone 0 pfns 98304 -> 1048576
-	[    0.000000] mminit::memmap_init Initialising map node 0 zone 2 pfns 1048576 -> 2031616
-	[    0.000000] mminit::zonelist general 0:DMA = 0:DMA 
-	[    0.000000] mminit::zonelist general 0:Normal = 0:Normal 0:DMA 
-	[    0.000000] Initmem setup node 0 [mem 0x0000000018000000-0x00000001 efff ffff]
+	[    0.000000] mminit::memmap_init Initialising map node 0 zone 0 pfns 98304（18000000 >> 12） -> 1048576（ffff ffff >> 12） //对应DMA ZONE 
+	[    0.000000] mminit::memmap_init Initialising map node 0 zone 2 pfns 1048576(100000000 >> 12) -> 2031616（1 efff ffff >> 12） //对应NORMAL ZONE 
+	[    0.000000] On node 0 totalpages: 819456(3201M  对应所有memblock的mem)
 
 
 实验
