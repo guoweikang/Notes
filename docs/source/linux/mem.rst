@@ -1085,6 +1085,23 @@ struct pglist_data 记录了每个 NUMA节点的内存布局，需要专门看�
 				 - pgdat_init_kcompactd //  初始化内存压缩列表
 			   -  pgdat->per_cpu_nodestats = &boot_nodestats; //初始化内存启动阶段的 内存使用情况统计
 			   -  memmap_pages = calc_memmap_size(size, freesize); 计算 页帧管理(PAGE)占用的内存 
+
+
+总结: 
+free_area_init_node: 会遍历所有pglist_data node 下的 所有zone，对一些基本字段完成初始化，主要计算了 每个zone 的起始 FPN（node_start_pfn） ，以及在每个node
+有效的页帧数量(node_present_pages)，会初始化 zone 的 有效的页帧数量(present_pages)，会计算管理有效页帧需要的 page页面，从可用页帧扣除,得到真实的管理页表数量(managed_pages)
+
+memap_init: 主要调用init_single_page 完成所有page的初始化工作
+
+
+
+
+
+
+
+
+
+
 			   
 	  - memmap_init
         -  memmap_init_zone_range

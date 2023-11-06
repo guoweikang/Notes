@@ -12,7 +12,9 @@
 
 参考
 --------
-这门课程真的很好: https://reberhardt.com/cs110l/spring-2021/
+课程推荐: 
+ - https://reberhardt.com/cs110l/spring-2021/  在线大学课程
+ - https://www.youtube.com/watch?v=BpPEoZW5IiY   油管RUST 基础课程
 
 官方基本入门书籍: 
  原版英文: https://doc.rust-lang.org/stable/book/title-page.html
@@ -255,9 +257,76 @@ https://play.rust-lang.org/
 ^^^^^^^^^^^^^^
 参考 :ref:`RUST环境安装` 
 
+练习平台
+^^^^^^^^^^
+ - rustling 
+ - rust by practice: https://zh.practice.rs/variables.html
 
-核心理念
----------
+变量绑定和解构
+----------------
+
+变量
+^^^^^^^^
+ - 声明一个变量 需要使用 *let* 关键字 
+ - 标准打印使用:  print!() 或者  println!() 
+ - 变量的生命周期:  在一个变量声明的block内有效，全局变量在全局有效
+ - 函数: 是一段可复用的 *有名*代码段 
+ - shadowing(rust 特有): 允许一个变量在同一个生命周期 重复声明 前一个变量失效
+
+练习
+^^^^^^^^
+完成 https://zh.practice.rs/variables.html  练习
+
+总结: 
+
+ - 使用的变量必须要初始化，否则会造成编译错误(C也支持编译告警) 
+ - 未使用的变量 会有告警(同C 的编译告警选项)，可以通过给变量增加*_*屏蔽告警
+   也可以通过增加 #[allow(unused_variables)] 
+ - RUST变量默认是不可变的，需要使用 *mut* 关键字声明为可变变量才可以修改 (和C 不一样)
+   事实上，RUST的原则是尽量有更多的不可变变量，从安全和运行效率上都会更好
+ - 变量是有作用域的，作用域向下涵盖 超出作用域的变量不可以访问
+ - 作用域shadowing 只在当前block内部有效 
+ - shadowing 可以是相同也可以是不同类型
+ - 可以使用元组对变量解构  * let (mut x; y) = (1,2)* 可以同时声明多个变量
+   该功能于 Rust 1.59 版本引入：你可以在赋值语句的左式中使用元组、切片或结构体进行匹配赋值。
+	
+
+基本类型
+----------
+
+数值类型
+^^^^^^^^^^
+和C类似，RUST的基本数据类型有：
+
+ - 符号整数：  i8 i16 i32 i64 i128 以及 isize(平台相关 指针宽度)
+ - 无符号整数: u8 u16 u32 u64 u128 以及 usize(平台相关 指针宽度)
+ - 浮点数： f32 f64 
+
+完成练习: 
+https://zh.practice.rs/basic-types/numbers.html
+
+知识点总结: 
+ - RUST 可以自动推导类型  如果无法推导， i32是默认的整型类型 
+ - 数字类型可以通过 *32_u8* 的方式表达
+ - 可以通过as转换类型，注意as可以从大到小 也可以从小到大转 
+ - rust 可以在编译阶段检查 overflow
+ - 动态也可以使用 u8::checked_add()方法检查溢出 会触发panic
+ - 数字也可以通过: 1_024 0xff 0o77 0b11111 使用不同进制 
+ 
+.. code-block: c
+
+	// 以下函数可以获取传入参数的类型，并返回类型的字符串形式，例如  "i8", "u8", "i32", "u32"
+	fn type_of<T>(_: &T) -> String {
+		format!("{}", std::any::type_name::<T>())
+	}
+
+  
+
+ - char: 单个unicode字符,4byte  
+ - bool: 只能是true 和 false 
+ - 单元类型 unit：() 只能为空 作为无返回值函数的返回 就是unit
+ 
+ 
 
 生命周期
 ^^^^^^^^^
@@ -615,16 +684,7 @@ RUST 默认变量都是不可变的 先参考下面代码
 ---------
 是时候简单介绍一些基本类型和语法 以便于继续下面的学习
 
-基本类型
-^^^^^^^^^^
-和C类似，RUST的基本数据类型有：
 
- - 符号整数：  i8 i16 i32 i64 i128 以及 isize(平台相关 指针宽度)
- - 无符号整数: u8 u16 u32 u64 u128 以及 usize
- - 浮点数： f32 f64 
- - char: 单个unicode字符,4byte 
- - bool: 只能是true 和 false 
- - 单元类型 unit：() 只能为空
 
 .. note::
 
