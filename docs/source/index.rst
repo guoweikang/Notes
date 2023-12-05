@@ -24,6 +24,7 @@ Contents
 .. toctree::
 
    RUST            <rust/rust.rst>
+   Rust-for-linux  <rust/r4l.rst>
    计算机原理      <computer_organization/index.rst>
    操作系统        <os/index.rst>
    LinuxBook       <linux/index.rst>
